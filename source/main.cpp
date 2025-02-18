@@ -1,5 +1,5 @@
 #include <iostream>
-#include <include/lexer.h>
+#include <lexer.hpp>
 
 
 
@@ -10,5 +10,5 @@ int main() {
 	
 	print_tokens(tokens);
 	
-
+	return 0;
 }

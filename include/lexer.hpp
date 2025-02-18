@@ -3,10 +3,10 @@
 #include <vector>
 #include <unordered_set>
 
-#include <token.h>
+#include <token.hpp>
 
 
-void print_tokens(std::vector<Token> tokens);
+void print_tokens(const std::vector<Token>& tokens);
 
 class Lexer{
     public:
@@ -27,8 +27,8 @@ class Lexer{
         std::string operator_char = "+-*/%^&|=><!";
 	    std::string punctuator_char = ",()[]{};\":'";
 	
-	    std::vector<std::string> keywords = {"if", "elif", "else", "while", "do", "for", "return", "break", "continue"};
-	    std::vector<std::string> types = {"int", "float", "double", "char", "string", "bool", "void", "struct"};
+	    std::unordered_set<std::string> keywords = {"if", "elif", "else", "while", "do", "for", "return", "break", "continue"};
+	    std::unordered_set<std::string> types = {"int", "float", "double", "char", "string", "bool", "void", "struct"};
 
 
     
