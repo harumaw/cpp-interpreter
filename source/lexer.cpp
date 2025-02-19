@@ -60,13 +60,25 @@ Token Lexer::extract_number(std::string& line){
 
 }
 
-Token Lexer::extract_operator(std::string& line){
+Token Lexer::extract_operator(std::string& line) {
     std::string op;
-    while(offset < line.size() && operator_char.find(line[offset]) != std::string::npos){
-        op += line[offset++];
 
+    if (offset + 1 < line.size() && operator_char.find(line[offset]) != std::string::npos &&
+        operator_char.find(line[offset + 1]) != std::string::npos) {
+        
+        std::string potential_op = {line[offset], line[offset + 1]}; // Берем 2 символа
+        if (valid_ops.find(potential_op) != valid_ops.end()) { // Проверяем, есть ли такой оператор
+            offset += 2;
+            return {potential_op, TokenType::OPERATOR};
+        }
     }
-    if (!operator_char.empty()) return {op, TokenType::OPERATOR};
+
+    // Если двухсимвольный не найден — берем один символ
+    if (operator_char.find(line[offset]) != std::string::npos) {
+        op += line[offset++];
+        return {op, TokenType::OPERATOR};
+    }
+
     throw std::runtime_error("Unknown operator: " + op);
 }
 
