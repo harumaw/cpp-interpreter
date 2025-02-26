@@ -23,42 +23,79 @@ std::vector<Token> Lexer::tokenize() {
     std::string line;
     while(std::getline(file, line)){
         offset = 0;
-        while(offset < line.size()){
-            if(std::isdigit(line[offset])){
-                tokens.push_back(extract_number(line));
+        while (offset < line.size()) {
+            char current = line[offset];
 
-            } else if(std::isalpha(line[offset]) || line[offset] == '_'){
+            if (std::isdigit(current) || current == '"' || current == '\'' || 
+                (current == '-' && offset + 1 < line.size() && std::isdigit(line[offset + 1]))) {
+                tokens.push_back(extract_literal(line));
+            } else if (std::isalpha(current) || current == '_') {
                 tokens.push_back(extract_identifier(line));
-            } else if (operator_char.find(line[offset]) != std::string::npos) {
+            } else if (operator_char.find(current) != std::string::npos) {
                 tokens.push_back(extract_operator(line));
-            }
-            else if(std::ispunct(line[offset])){
+            } else if (std::ispunct(current)) {
                 tokens.push_back(extract_punctuator(line));
-            }
-            else{
+            } else {
                 offset++;
             }
         }
     }
-    tokens.push_back({"", TokenType:: END});
+    tokens.push_back({"", TokenType::END});
     return tokens;
-
 }
 
-Token Lexer::extract_number(std::string& line){
-    std::string number;
-    std::size_t num_dots = 0;
-    while(offset < line.size() && (std::isdigit(line[offset]) || line[offset] == '.')){
-        if(line[offset] == '.' && ++num_dots > 1){
-            throw std::runtime_error("Too many dots");
+Token Lexer::extract_literal(std::string& line) {
+    std::string value;
+    bool has_dot = false, has_exp = false;
+    
 
+    if (std::isdigit(line[offset])) {  
+        while (offset < line.size() && (std::isdigit(line[offset]) || line[offset] == '.' || 
+               line[offset] == 'e' || line[offset] == 'E' || line[offset] == '+' || line[offset] == '-')) {
+            if (line[offset] == '.') {
+                if (has_dot) break; 
+                has_dot = true;
+            }
+            if (line[offset] == 'e' || line[offset] == 'E') {
+                if (has_exp) break;
+                has_exp = true;
+            }
+            value += line[offset++];
         }
-        number += line[offset++];
-
+        return {value, TokenType::LITERAL};
     }
-    return {number, TokenType:: NUMBER};
 
+    if (line[offset] == '"') {  
+        offset++; 
+        while (offset < line.size() && line[offset] != '"') {
+            value += line[offset++];
+        }
+        if (offset < line.size()) {
+            offset++;
+        } 
+        return {value, TokenType::LITERAL};
+    }
+
+    if (line[offset] == '\'') { 
+        offset++;
+        if (offset < line.size() && line[offset + 1] == '\'') {
+            value = line[offset];
+            offset += 2;
+            return {value, TokenType::LITERAL};
+        }
+    }
+
+    static const std::unordered_set<std::string> keywords_literals = {"true", "false", "nullptr"};
+    for (const auto& lit : keywords_literals) {
+        if (line.compare(offset, lit.size(), lit) == 0) {
+            offset += lit.size();
+            return {lit, TokenType::LITERAL};
+        }
+    }
+
+    throw std::runtime_error("Unknown literal format at: " + line.substr(offset, 10));
 }
+
 
 Token Lexer::extract_operator(std::string& line) {
     std::string op;
@@ -115,7 +152,7 @@ void print_tokens(const std::vector<Token>& tokens){
 
 std::string token_type_to_string(TokenType type){
     switch (type) {
-        case TokenType::NUMBER: return "NUMBER";
+        case TokenType::LITERAL: return "LITERAl";
         case TokenType::IDENTIFIER: return "IDENTIFIER";
         case TokenType::OPERATOR: return "OPERATOR";
         case TokenType::KEYWORD: return "KEYWORD";

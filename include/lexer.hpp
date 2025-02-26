@@ -19,7 +19,7 @@ class Lexer{
         std::size_t offset;
 
 
-        Token extract_number(std::string&);
+        Token extract_literal(std::string&);
         Token extract_identifier(std::string&);
         Token extract_operator(std::string&);
         Token extract_punctuator(std::string&);

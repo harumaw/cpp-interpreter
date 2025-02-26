@@ -3,7 +3,7 @@
 #include <string>
 
 enum class TokenType{
-    NUMBER, IDENTIFIER, OPERATOR, KEYWORD, PUNCTUATOR, TYPE, END
+    LITERAL, IDENTIFIER, OPERATOR, KEYWORD, PUNCTUATOR, TYPE, END
 
     // number - chislo
     // identifier - nazvanie peremennih
