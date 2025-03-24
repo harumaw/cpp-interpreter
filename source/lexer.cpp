@@ -93,7 +93,7 @@ Token Lexer::extract_literal(std::string& line) {
         }
     }
 
-    throw std::runtime_error("Unknown literal format at: " + line.substr(offset, 10));
+    throw std::runtime_error("Unknown LITERAL format at: " + line.substr(offset, 10));
 }
 
 
@@ -152,7 +152,7 @@ void print_tokens(const std::vector<Token>& tokens){
 
 std::string token_type_to_string(TokenType type){
     switch (type) {
-        case TokenType::LITERAL: return "LITERAl";
+        case TokenType::LITERAL: return "LITERAL";
         case TokenType::IDENTIFIER: return "IDENTIFIER";
         case TokenType::OPERATOR: return "OPERATOR";
         case TokenType::KEYWORD: return "KEYWORD";
