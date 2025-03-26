@@ -10,7 +10,7 @@ TARGET := $(BIN_DIR)/program
 
 CXX := g++
 CXXFLAGS := -std=c++23 -Wall -Werror -g
-CPPFLAGS := -I$(INC_DIR) -MMD -MP
+CPPFLAGS = -I$(INC_DIR) -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 all: $(TARGET)
 
@@ -26,6 +26,14 @@ $(BUILD_DIR) $(BIN_DIR):
 	@mkdir -p $@
 
 -include $(DEPS)
+
+run: $(TARGET)
+	@echo "Running $<..."
+	@$(TARGET)
+
+debug: $(TARGET)
+	@echo "Debugging $<..."
+	@gdb $(TARGET)
 
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)
