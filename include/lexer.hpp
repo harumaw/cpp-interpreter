@@ -2,35 +2,36 @@
 
 #include <vector>
 #include <unordered_set>
-
-#include <token.hpp>
-
+#include <unordered_map>
+#include "token.hpp"
 
 void print_tokens(const std::vector<Token>& tokens);
 
-class Lexer{
-    public:
-        Lexer(const std::string& filename);
-        std::vector<Token> tokenize();
+class Lexer {
+public:
+    Lexer(const std::string& filename);
+    std::vector<Token> tokenize();
 
-    private:
+private:
+    std::string filename;
+    std::size_t offset;
 
-        std::string filename;
-        std::size_t offset;
+    Token extract_literal(std::string&);
+    Token extract_identifier(std::string&);
+    Token extract_operator(std::string&);
+    Token extract_punctuator(std::string&);
+    TokenType map_operator_to_token_type(const std::string& op);
 
+    std::string operator_char = "+-*/%^&|=><!";
+    std::string punctuator_char = ",()[]{};\":'";
 
-        Token extract_literal(std::string&);
-        Token extract_identifier(std::string&);
-        Token extract_operator(std::string&);
-        Token extract_punctuator(std::string&);
-
-        std::string operator_char = "+-*/%^&|=><!";
-	    std::string punctuator_char = ",()[]{};\":'";
-	
-        std::unordered_set<std::string> valid_ops = {"++", "--", "==", "!=", ">=", "<=", "&&", "||", "+", "-", "*", "/", "%", "&", "|", "=", ">", "<", "!"};
-	    std::unordered_set<std::string> keywords = {"if", "elif", "else", "while", "do", "for", "return", "break", "continue"};
-	    std::unordered_set<std::string> types = {"int", "float", "double", "char", "string", "bool", "void", "struct"};
-
-
-    
+    std::unordered_set<std::string> valid_ops = {
+        "++", "--", "==", "!=", ">=", "<=", "&&", "||", "+", "-", "*", "/", "%", "&", "|", "=", ">", "<", "!"
+    };
+    std::unordered_set<std::string> keywords = {
+        "if", "elif", "else", "while", "do", "for", "return", "break", "continue"
+    };
+    std::unordered_set<std::string> types = {
+        "int", "float", "double", "char", "string", "bool", "void", "struct"
+    };
 };

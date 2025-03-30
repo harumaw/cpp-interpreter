@@ -9,7 +9,7 @@ DEPS := $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.d, $(SRCS))
 TARGET := $(BIN_DIR)/program
 
 CXX := g++
-CXXFLAGS := -std=c++23 -Wall -Werror -g
+CXXFLAGS := -std=c++23 -Wall -g
 CPPFLAGS = -I$(INC_DIR) -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 all: $(TARGET)

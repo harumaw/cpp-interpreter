@@ -8,13 +8,13 @@
 
 
 int main() {
-	
     Lexer lexer("example.txt");
     std::vector<Token> tokens = lexer.tokenize();
         
     print_tokens(tokens);
         
-    Parser parser(tokens);
+        
+    /*Parser parser(tokens);
     std::vector<node> parsed_nodes = parser.parse();
     for (const auto& n : parsed_nodes) {
         if (!n) {
@@ -22,8 +22,9 @@ int main() {
             continue;
         }
         std::cout << "Node type: " << typeid(*n).name() << std::endl;
+        
     }
     
-// asdasdsasdфвы
+    */
     
 }
