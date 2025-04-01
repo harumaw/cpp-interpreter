@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
-#include <unordered_set>
+
 #include "parser.hpp"
 
 #define MIN_PRECEDENCE 10
@@ -12,7 +12,7 @@ Parser::Parser(const std::vector<Token>& tokens) : tokens(tokens), offset(0) {}
 
 std::vector<node> Parser::parse() {
 	std::vector<node> nodes;
-	//std::cout << "Tokens vector size: " << tokens.size() << std::endl;
+	//std::cout << "TOkens vector size: " << tokens.size() << std::endl;
 	
 	while (offset < tokens.size() && tokens[offset].type != TokenType::END) {
 		nodes.push_back(parse_base());
@@ -30,7 +30,7 @@ std::vector<node> Parser::parse() {
 };
 
 
-
+// DECLARATION PARSING
 
 decl Parser::parse_variable_declaration() {
     std::string var_type = getTypeFrom_string(tokens[offset++].value);
@@ -144,8 +144,8 @@ decl Parser::parse_variable_declaration() {
 				expr var_value = std::static_pointer_cast<Expression>(parse_token());
 				vars_lst.push_back(std::make_pair(var, var_value));
 				
-			
-				//std::cout << offset << std::endl;
+				//std::cout << "okay\n";
+				std::cout << offset << std::endl;
 				if (match_value(";")) {
 					++offset;
 					return std::make_shared<VariableDeclarationNode>(var_type, vars_lst); 
@@ -163,12 +163,12 @@ decl Parser::parse_variable_declaration() {
 
             	return std::make_shared<VariableDeclarationNode>(var_type, vars_lst);            	
             } else {
-            	//std::cout << offset << std::endl;
+            	std::cout << offset << std::endl;
                 throw std::runtime_error("Syntax error - after variable name initialization expected value or ';' or ',', but there's not");
             }
             
         } else {
-		//std::cout << offset << ": Token: " << std::endl;         
+		std::cout << offset << ": Token: " << std::endl;         
 		throw std::runtime_error("Syntax error - unexpected token instead of variable");
         }
     }
@@ -224,13 +224,12 @@ decl Parser::parse_function_declaration() {
 	}
 	
 	
-		
+	//std::cout << "Func decl analyzed: " << offset;	
 	return std::make_shared<FunctionDeclarationNode>(function_type, function_name, args, block_st);
 }
 
 
-
-
+// STATEMENT PARSING
 
 st Parser::parse_if_statement() {
 	expr cond_expr;
@@ -313,7 +312,7 @@ st Parser::parse_else_statement() {
 			throw std::runtime_error("Syntax error - missing block statement");
 		}
 		
-		std::cout << offset << "else statement parsed\n";
+		//std::cout << offset << "else statement parsed\n";
 		return std::make_shared<ELSE_Statement_Node>(block_st);
 	} else {
 		return nullptr;
@@ -394,7 +393,7 @@ st Parser::parse_for() {
 	if (match_value("(")) {
 		++offset;
 	} else {
-		//std::cout << offset << std::endl;
+		std::cout << offset << std::endl;
 		throw std::runtime_error("Syntax error: missing '(' before loop 'for' expression");
 	}
 	
@@ -404,12 +403,12 @@ st Parser::parse_for() {
 	
 	cond_expr = binary_parse();
 	
-	std::cout << "Loop cond parsed\n";
+	//std::cout << "Loop cond parsed\n";
 	
 	while (!match_value(")") && !match_value("{")) {
 		iters.push_back(binary_parse());
-		//std::cout << offset << std::endl;
-
+		std::cout << offset << std::endl;
+		//sleep(1);
 		if (match_value(",") && tokens[offset + 1].value != ")") {
 			++offset;
 		}
@@ -419,7 +418,7 @@ st Parser::parse_for() {
 		++offset;
 	}
 	
-	std::cout << "iters parsed" << offset << std::endl; 
+	//std::cout << "iters parsed" << offset << std::endl; 
 	
 	if (match_value("{") && tokens[offset + 1].value != "}") {
 		block_st = parse_block_statement();
@@ -436,7 +435,7 @@ st Parser::parse_for() {
 		throw std::runtime_error("Syntax error - missing block statement");
 	}
 	
-	std::cout << "For loop parsed\n" << offset;
+	//std::cout << "For loop parsed\n" << offset;
 	
 	return std::make_shared<ForLoopNode>(var_decls, cond_expr, iters, block_st);
 }
@@ -528,7 +527,7 @@ st Parser::parse_jump() {
 }
 
 
-
+// EXPRESSION PARSING
 
 expr Parser::binary_parse() {
 	return parse_binary_expression(MIN_PRECEDENCE);
@@ -585,7 +584,7 @@ expr Parser::parse_prefix() {
 	std::string id = tokens[offset++].value; 
 	branch = std::make_shared<IdentifierNode>(id);
 	
-	std::cout << offset << "- problem:" << std::endl; 
+//	std::cout << offset << "- problem:" << std::endl; 
 	
 	if (tokens[offset].value == ";" || tokens[offset].value == ");" || tokens[offset].value == ")" || tokens[offset].value == ",") {
 		++offset;
@@ -610,7 +609,7 @@ expr Parser::parse_postfix() {
 		throw std::runtime_error("Syntax error - Unexpected token instead of unary operator");
 	}
 	
-	std::cout << offset << "- problem:" << std::endl;
+	//std::cout << offset << "- problem:" << std::endl;
 	
 	if (tokens[offset].value == ";" || tokens[offset].value == ");" || tokens[offset].value == ")" || tokens[offset].value == ",") {
 		++offset;
@@ -742,96 +741,82 @@ expr Parser::parse_string() {
 }
 
 
-
-
+// PARSING METHODS USING DECLARATION, STATEMENT, EXPRESSION
+        
 node Parser::parse_token() {
-    if (match_type(TokenType::LITERAL)) {
-        if (tokens[offset].value.front() == '"' && tokens[offset].value.back() == '"') {
-            std::string str_value = tokens[offset++].value;
-            str_value = str_value.substr(1, str_value.size() - 2);
-            return std::make_shared<StringNode>(str_value);
-        }
-        else if (tokens[offset].value.front() == '\'' && tokens[offset].value.back() == '\'') {
-            std::string char_value = tokens[offset++].value;
-            if (char_value.size() == 3) { 
-                return std::make_shared<CharacterNode>(char_value[1]);
-            } else {
-                throw std::runtime_error("Syntax error: invalid char literal");
-            }
-        }
-        // Если это число
-        else {
-            return std::make_shared<NumberNode>(std::stod(type_extract(TokenType::LITERAL)));
-        }
-    } else if (match_type(TokenType::IDENTIFIER)) {
-        if (tokens[offset + 1].type == TokenType::OPERATOR && tokens[offset + 2].type == TokenType::PUNCTUATOR) {
-            return parse_unary();
-        } else if (tokens[offset + 1].type == TokenType::OPERATOR &&
-                  (tokens[offset + 2].type == TokenType::LITERAL || tokens[offset + 2].type == TokenType::IDENTIFIER)) {
-            return binary_parse();
-        } else { 
-            if (auto identifier = type_extract(TokenType::IDENTIFIER); 
-                tokens[offset].value == "(" || tokens[offset].value == "();") {
-                return std::make_shared<FunctionNode>(identifier, parse_function_interior());
-            } else {
-                return std::make_shared<IdentifierNode>(identifier);
-            }
-        }
-    } else if (match_type(TokenType::TYPE)) {
-        if (tokens[offset + 1].type == TokenType::IDENTIFIER &&
-            (tokens[offset + 2].value != "(" && tokens[offset + 2].value != "()")) {
-            return parse_variable_declaration();
-        } else if (tokens[offset + 1].type == TokenType::IDENTIFIER &&
-                  (tokens[offset + 2].value == "(" || tokens[offset + 2].value == "()")) {
-            return parse_function_declaration();
-        }
-    } else if (match_type(TokenType::KEYWORD) && keywords.contains(tokens[offset].value)) {
-        if (tokens[offset].value == "if" || tokens[offset].value == "elif" || tokens[offset].value == "else") {
-            return parse_conditional();
-        } else if (tokens[offset].value == "while" || tokens[offset].value == "do" || tokens[offset].value == "for") {
-            return parse_loop();
-        } else if (tokens[offset].value == "return" || tokens[offset].value == "break" || tokens[offset].value == "continue") {
-            return parse_jump();
-        }
-    } else if (match_type(TokenType::OPERATOR)) {
-        return parse_unary();
-    } else if (match_value("(")) {
-        return parse_parenthesized_expression();
-    } else if (match_value("{")) {
-        return parse_block_statement();
-    } else if (match_type(TokenType::END)) {
-        return nullptr;
-    } else {
-        throw std::runtime_error(std::to_string(offset) + " Syntax error - unexpected token: " + tokens[offset].value);
-    }
-    throw std::runtime_error("Parsing Error - unreachable scope");
+	if (match_type(TokenType::LITERAL) && tokens[offset + 1].type != TokenType::OPERATOR) {
+		return std::make_shared<NumberNode>(std::stod(type_extract(TokenType::LITERAL)));		
+
+	
+	} else if (match_type(TokenType::LITERAL) && tokens[offset + 1].type == TokenType::OPERATOR) {
+		return binary_parse();
+	} else if (match_type(TokenType::IDENTIFIER)) {
+		//std::cout << "parse id " << offset << std::endl;
+		if (tokens[offset + 1].type == TokenType::OPERATOR && tokens[offset + 2].type == TokenType::PUNCTUATOR) {
+			return parse_unary();
+		} else if (tokens[offset + 1].type == TokenType::OPERATOR && (tokens[offset + 2].type == TokenType::LITERAL || tokens[offset + 2].type == TokenType::IDENTIFIER)) {
+			return binary_parse();
+		} else { 
+			if (auto identifier = type_extract(TokenType::IDENTIFIER); tokens[offset].value == "(" || tokens[offset].value == "();") {
+				return std::make_shared<FunctionNode>(identifier, parse_function_interior());
+			} else {
+				return std::make_shared<IdentifierNode>(identifier);
+			}
+		}
+	} else if (match_type(TokenType::TYPE)) {
+		//std::cout << "parse type " << offset << std::endl;
+		if (tokens[offset + 1].type == TokenType::IDENTIFIER && (tokens[offset + 2].value != "(" && tokens[offset + 2].value != "()")) {
+			return parse_variable_declaration();
+		} else if (tokens[offset + 1].type == TokenType::IDENTIFIER && (tokens[offset + 2].value == "(" || tokens[offset + 2].value == "()")) {
+			return parse_function_declaration();
+		} 
+	} else if (match_type(TokenType::KEYWORD) && keywords.find(tokens[offset].value) != keywords.end()) {
+		if (tokens[offset].value == "if" || tokens[offset].value == "elif" || tokens[offset].value == "else") {
+			return parse_conditional();
+		} else if (tokens[offset].value == "while" || tokens[offset].value == "do" || tokens[offset].value == "for") {
+			return parse_loop();
+		} else if (tokens[offset].value == "return" || tokens[offset].value == "break" || tokens[offset].value == "continue") {
+			//std::cout << "jump parsing" << offset << std::endl;
+			return parse_jump();
+		}
+		
+	} else if (match_type(TokenType::OPERATOR)) {
+		return parse_unary();
+	} else if (match_value("(")) {
+		return parse_parenthesized_expression();
+	} else if (match_value("{")) {
+		return parse_block_statement();
+	} else if (match_type(TokenType::END)) {
+		return nullptr;
+	} else {
+		throw std::runtime_error(offset + "Syntax error - unexpected token:" + offset);
+	}
+		
+	throw std::runtime_error("Parsing Error - unreachable scope");
 }
+
 
 
 node Parser::parse_base() {
     if (is_global_scope()) {
         if (match_type(TokenType::TYPE)) {
             return parse_variable_declaration();
-        } else if (match_type(TokenType::KEYWORD)) {  // 
-            return parse_token();  
         } else {
-            std::cout << "Ошибка на токене #" << offset << ": " << tokens[offset].value << std::endl;
-            throw std::runtime_error("Syntax error - Unexpected token in global scope.");
+            throw std::runtime_error("Syntax error - Non Variable Declaration.");
         }
     } else {
         return parse_token();
     }
 }
-
-
 bool Parser::is_global_scope() const {
-	if (!match_type(TokenType::TYPE)) {
-		return true;
-	} else if (match_value("{") || match_type(TokenType::KEYWORD)) { 
-		return false;
-	} else {
-		return match_type(TokenType::TYPE) && tokens[offset + 1].type == TokenType::IDENTIFIER && (tokens[offset + 2].value != "(" && tokens[offset + 2].value != "()");
-	} 
+    if (match_type(TokenType::TYPE)) {
+        return true;
+    } else if (match_value("{") || match_type(TokenType::KEYWORD)) {
+        return false;
+    } else {
+        return match_type(TokenType::TYPE) && tokens[offset + 1].type == TokenType::IDENTIFIER &&
+               (tokens[offset + 2].value != "(" && tokens[offset + 2].value != "()");
+    }
 }
 
 bool Parser::match_value(std::string value) const {
@@ -844,7 +829,7 @@ bool Parser::match_type(TokenType expected_type) const {
 
 std::string Parser::value_extract(std::string value) {
 	if (!match_value(value)) {
-		//std::cout << offset << std::endl;
+		std::cout << offset << std::endl;
 		throw std::runtime_error("Unexpected token value:" + tokens[offset].value);
 	}
 	return tokens[offset++].value;
@@ -853,7 +838,7 @@ std::string Parser::value_extract(std::string value) {
 
 std::string Parser::type_extract(TokenType expected_type) {
 	if (!match_type(expected_type)) {
-		//std::cout << offset << std::endl;
+		std::cout << offset << std::endl;
 		throw std::runtime_error("Unexpected token type:" + tokens[offset].value);
 	}
 	return tokens[offset++].value;
@@ -894,18 +879,8 @@ const std::unordered_map<std::string, int> Parser::num_operators = {
 	{"-=", 10}, {"*=", 10},
 	{"/=", 10}
 }; 
-const std::unordered_set<std::string> Parser::types = {
-    "int", "float", "double", "char", "string", "bool", "void", "struct"
-};
 
-const std::unordered_set<std::string> Parser::keywords = {
-    "if", "elif", "else", "while", "do", "for", "return", "break", "continue"
-};
-
-const std::unordered_set<std::string> Parser::operators = {
-    "+", "-", "*", "/", "%", "^", "&", "|", "=", "==", "!=", ">=", "<=", ">", "<", "!", "&&", "||"
-};
-
-const std::unordered_set<std::string> unary_operators = {
-    "+", "-", "++", "--", "*", "&", ".", "->"
-};
+const std::unordered_set<std::string> Parser::types = {"int", "float", "double", "char", "string", "bool", "void", "struct"};
+const std::unordered_set<std::string> Parser::keywords = {"if", "elif", "else", "while", "do", "for", "return", "break", "continue"};
+const std::unordered_set<std::string> Parser::operators = {"+", "-", "*", "/", "%", "^", "&", "|", "=", "==", "!=", ">=", "<=", ">", "<", "!", "&&", "||"};
+const std::vector<std::string> unary_operators = {"+", "-", "++", "--", "*", "&", ".", "->"};

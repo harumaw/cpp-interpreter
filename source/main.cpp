@@ -14,7 +14,7 @@ int main() {
     print_tokens(tokens);
         
         
-    /*Parser parser(tokens);
+    Parser parser(tokens);
     std::vector<node> parsed_nodes = parser.parse();
     for (const auto& n : parsed_nodes) {
         if (!n) {
@@ -25,6 +25,6 @@ int main() {
         
     }
     
-    */
+    
     
 }
