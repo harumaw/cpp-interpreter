@@ -1,27 +1,25 @@
-#include <iostream>
-#include <vector>
-#include <string> 
-#include <stdexcept>
 #include "lexer.hpp"
-#include <optional>
-#include <fstream> 
-#include <unordered_set>
+#include "token.hpp"
+#include <iostream>
+#include <fstream>
+#include <cctype>
+#include <unordered_map>
+#include <set>
+
 
 Lexer::Lexer(const std::string& filename) : filename(filename), offset(0) {}
-
 
 std::vector<Token> Lexer::tokenize() {
     std::vector<Token> tokens;
     std::ifstream file(filename);
 
-    if (!file){
-        std::cerr << "Error opening file" <<filename<< std::endl;
+    if (!file) {
+        std::cerr << "Error opening file: " << filename << std::endl;
         return tokens;
     }
 
-
     std::string line;
-    while(std::getline(file, line)){
+    while (std::getline(file, line)) {
         offset = 0;
         while (offset < line.size()) {
             char current = line[offset];
@@ -30,7 +28,7 @@ std::vector<Token> Lexer::tokenize() {
                 (current == '-' && offset + 1 < line.size() && std::isdigit(line[offset + 1]))) {
                 tokens.push_back(extract_literal(line));
             } else if (std::isalpha(current) || current == '_') {
-                tokens.push_back(extract_identifier(line));
+                tokens.push_back(extract_id(line));
             } else if (operator_char.find(current) != std::string::npos) {
                 tokens.push_back(extract_operator(line));
             } else if (std::ispunct(current)) {
@@ -40,125 +38,285 @@ std::vector<Token> Lexer::tokenize() {
             }
         }
     }
-    tokens.push_back({"", TokenType::END});
+    tokens.push_back({TokenType::END, ""});
     return tokens;
 }
 
-Token Lexer::extract_literal(std::string& line) {
-    std::string value;
-    bool has_dot = false, has_exp = false;
-    
+Token Lexer::extract_literal(const std::string& line) {
+    if (std::isdigit(line[offset])) {
+        std::size_t size = 0;
 
-    if (std::isdigit(line[offset])) {  
-        while (offset < line.size() && (std::isdigit(line[offset]) || line[offset] == '.' || 
-               line[offset] == 'e' || line[offset] == 'E' || line[offset] == '+' || line[offset] == '-')) {
-            if (line[offset] == '.') {
-                if (has_dot) break; 
-                has_dot = true;
-            }
-            if (line[offset] == 'e' || line[offset] == 'E') {
-                if (has_exp) break;
-                has_exp = true;
-            }
-            value += line[offset++];
+        while (std::isdigit(line[offset + size])) ++size;
+
+        if (line[offset + size] == '.') {
+            ++size;
+            while (std::isdigit(line[offset + size])) ++size;
         }
-        return {value, TokenType::LITERAL};
+
+        std::string value = line.substr(offset, size);
+        offset += size;
+        return {TokenType::LITERAL_NUM, value};
     }
 
-    if (line[offset] == '"') {  
-        offset++; 
-        while (offset < line.size() && line[offset] != '"') {
-            value += line[offset++];
-        }
-        if (offset < line.size()) {
-            offset++;
-        } 
-        return {value, TokenType::LITERAL};
-    }
-
-    if (line[offset] == '\'') { 
-        offset++;
-        if (offset < line.size() && line[offset + 1] == '\'') {
-            value = line[offset];
-            offset += 2;
-            return {value, TokenType::LITERAL};
+    if (line[offset] == '\'') {
+        if (offset + 2 < line.size() && line[offset + 2] == '\'') {
+            std::string value = line.substr(offset, 3);
+            offset += 3;
+            return {TokenType::LITERAL_CHAR, value};
         }
     }
 
-    static const std::unordered_set<std::string> keywords_literals = {"true", "false", "nullptr"};
-    for (const auto& lit : keywords_literals) {
-        if (line.compare(offset, lit.size(), lit) == 0) {
-            offset += lit.size();
-            return {lit, TokenType::LITERAL};
+    if (line[offset] == '"') {
+        std::size_t start = offset + 1;
+        std::size_t end = line.find('"', start);
+        if (end != std::string::npos) {
+            std::string value = line.substr(offset, end - offset + 1);
+            offset = end + 1;
+            return {TokenType::LITERAL_STRING, value};
         }
     }
 
-    throw std::runtime_error("Unknown LITERAL format at: " + line.substr(offset, 10));
+    return {TokenType::END, ""};
 }
 
-
-Token Lexer::extract_operator(std::string& line) {
-    std::string op;
-   
-
-    if (offset + 1 < line.size() && operator_char.find(line[offset]) != std::string::npos &&
-        operator_char.find(line[offset + 1]) != std::string::npos) {
-        
-        std::string potential_op = {line[offset], line[offset + 1]}; 
-        if (valid_ops.find(potential_op) != valid_ops.end()) { 
-            offset += 2;
-            return {potential_op, TokenType::OPERATOR};
-        }
-    }
-
-    
-    if (operator_char.find(line[offset]) != std::string::npos) {
-        op += line[offset++];
-        return {op, TokenType::OPERATOR};
-    }
-
-    throw std::runtime_error("Unknown operator: " + op);
-}
-
-Token Lexer::extract_punctuator(std::string& line){
-    std::string punct;
-    while(offset < line.size() && punctuator_char.find(line[offset]) != std::string::npos){
-        punct += line[offset++];
-        
-    }
-    if (!punctuator_char.empty()) return {punct, TokenType::PUNCTUATOR};
-    throw std::runtime_error("Unknown punct: " + punct);
-}
-
-Token Lexer::extract_identifier(std::string& line) {
-    std::string identifier;
+Token Lexer::extract_id(const std::string& line) {
+    std::size_t start = offset;
     while (offset < line.size() && (std::isalnum(line[offset]) || line[offset] == '_')) {
-        identifier += line[offset++];
+        offset++;
     }
-    if (keywords.contains(identifier)) return {identifier, TokenType::KEYWORD};
-    if (types.contains(identifier)) return {identifier, TokenType::TYPE}; 
-    return {identifier, TokenType::IDENTIFIER}; 
+
+    std::string value = line.substr(start, offset - start);
+    if (keywords.find(value) != keywords.end()) {
+        return {keywords[value], value};
+    }
+
+    return {TokenType::ID, value};
+}
+
+Token Lexer::extract_operator(const std::string& line) {
+    for (const auto& op : operators) {
+        if (line.compare(offset, op.first.size(), op.first) == 0) {
+            offset += op.first.size();
+            return {op.second, op.first};
+        }
+    }
+
+    offset++;
+    return {TokenType::END, ""};
+}
+
+Token Lexer::extract_punctuator(const std::string& line) {
+    for (const auto& punct : punctuators) {
+        if (line.compare(offset, punct.first.size(), punct.first) == 0) {
+            offset += punct.first.size();
+            return {punct.second, punct.first};
+        }
+    }
+
+    offset++;
+    return {TokenType::END, ""};
+}
+
+Token Lexer::extract_keyword(const std::string& line) {
+    std::size_t start = offset;
+    while (offset < line.size() && (std::isalnum(line[offset]) || line[offset] == '_')) {
+        offset++;
+    }
+
+    std::string value = line.substr(start, offset - start);
+    if (keywords.find(value) != keywords.end()) {
+        return {keywords[value], value};
+    }
+
+    return {TokenType::ID, value};
+}
+
+Token Lexer::extract_type(const std::string& line) {
+    std::size_t start = offset;
+    while (offset < line.size() && (std::isalnum(line[offset]) || line[offset] == '_')) {
+        offset++;
+    }
+
+    std::string value = line.substr(start, offset - start);
+    if (types.find(value) != types.end()) {
+        return {TokenType::TYPE, value};
+    }
+
+    return {TokenType::ID, value};
 }
 
 
 
-std::string token_type_to_string(TokenType type);
 
-void print_tokens(const std::vector<Token>& tokens){
-    for(std::size_t i = 0; i < tokens.size(); ++i) {
-        std::cout << i << "token " << tokens[i].value << " --> type " << token_type_to_string(tokens[i].type) << std::endl;
-    }
-}
 
-std::string token_type_to_string(TokenType type){
+std::string Lexer::token_type_to_string(TokenType type) {
     switch (type) {
-        case TokenType::LITERAL: return "LITERAL";
-        case TokenType::IDENTIFIER: return "IDENTIFIER";
-        case TokenType::OPERATOR: return "OPERATOR";
-        case TokenType::KEYWORD: return "KEYWORD";
-        case TokenType::PUNCTUATOR: return "PUNCTUATOR";
+        // Литералы
+        case TokenType::LITERAL_NUM: return "LITERAL_NUM";
+        case TokenType::LITERAL_CHAR: return "LITERAL_CHAR";
+        case TokenType::LITERAL_STRING: return "LITERAL_STRING";
+
+        // Типы данных
         case TokenType::TYPE: return "TYPE";
+
+        // Арифметические операторы
+        case TokenType::PLUS: return "PLUS";
+        case TokenType::MINUS: return "MINUS";
+        case TokenType::MULTIPLY: return "MULTIPLY";
+        case TokenType::DIVIDE: return "DIVIDE";
+        case TokenType::MODULO: return "MODULO";
+        case TokenType::POWER: return "POWER";
+
+        // Операторы присваивания
+        case TokenType::ASSIGN: return "ASSIGN";
+        case TokenType::PLUS_ASSIGN: return "PLUS_ASSIGN";
+        case TokenType::MINUS_ASSIGN: return "MINUS_ASSIGN";
+        case TokenType::MULTIPLY_ASSIGN: return "MULTIPLY_ASSIGN";
+        case TokenType::DIVIDE_ASSIGN: return "DIVIDE_ASSIGN";
+        case TokenType::MODULO_ASSIGN: return "MODULO_ASSIGN";
+        case TokenType::RIGHT_SHIFT_ASSIGN: return "RIGHT_SHIFT_ASSIGN";
+        case TokenType::LEFT_SHIFT_ASSIGN: return "LEFT_SHIFT_ASSIGN";
+        case TokenType::AND_ASSIGN: return "AND_ASSIGN";
+        case TokenType::XOR_ASSIGN: return "XOR_ASSIGN";
+        case TokenType::OR_ASSIGN: return "OR_ASSIGN";
+
+        // Операторы сравнения
+        case TokenType::EQUAL: return "EQUAL";
+        case TokenType::NOT_EQUAL: return "NOT_EQUAL";
+        case TokenType::GREATER: return "GREATER";
+        case TokenType::LESS: return "LESS";
+        case TokenType::GREATER_EQUAL: return "GREATER_EQUAL";
+        case TokenType::LESS_EQUAL: return "LESS_EQUAL";
+
+        // Логические операторы
+        case TokenType::NOT: return "NOT";
+        case TokenType::AND: return "AND";
+        case TokenType::OR: return "OR";
+        case TokenType::QUESTION: return "QUESTION";
+
+        // Побитовые операторы
+        case TokenType::BIT_AND: return "BIT_AND";
+        case TokenType::BIT_OR: return "BIT_OR";
+        case TokenType::BIT_XOR: return "BIT_XOR";
+        case TokenType::BIT_NOT: return "BIT_NOT";
+        case TokenType::LEFT_SHIFT: return "LEFT_SHIFT";
+        case TokenType::RIGHT_SHIFT: return "RIGHT_SHIFT";
+
+        // Унарные операторы
+        case TokenType::INCREMENT: return "INCREMENT";
+        case TokenType::DECREMENT: return "DECREMENT";
+
+        // Индексация и доступ
+        case TokenType::INDEX_LEFT: return "INDEX_LEFT";
+        case TokenType::INDEX_RIGHT: return "INDEX_RIGHT";
+        case TokenType::DOT: return "DOT";
+        case TokenType::ARROW: return "ARROW";
+
+        // Разделители
+        case TokenType::COMMA: return "COMMA";
+        case TokenType::COLON: return "COLON";
+        case TokenType::SEMICOLON: return "SEMICOLON";
+        case TokenType::PARENTHESIS_LEFT: return "PARENTHESIS_LEFT";
+        case TokenType::PARENTHESIS_RIGHT: return "PARENTHESIS_RIGHT";
+        case TokenType::BRACE_LEFT: return "BRACE_LEFT";
+        case TokenType::BRACE_RIGHT: return "BRACE_RIGHT";
+        case TokenType::PUNCTUATOR: return "PUNCTUATOR";
+
+        // Идентификаторы и ключевые слова
+        case TokenType::ID: return "ID";
+        case TokenType::KEYWORD: return "KEYWORD";
+        case TokenType::IF: return "IF";
+        case TokenType::ELSE: return "ELSE";
+        case TokenType::FOR: return "FOR";
+        case TokenType::WHILE: return "WHILE";
+        case TokenType::STRUCT: return "STRUCT";
+        case TokenType::BREAK: return "BREAK";
+        case TokenType::CONTINUE: return "CONTINUE";
+        case TokenType::CONST: return "CONST";
+        case TokenType::DO: return "DO";
+        case TokenType::FALSE: return "FALSE";
+        case TokenType::TRUE: return "TRUE";
+        case TokenType::RETURN: return "RETURN";
+
+        // Конец файла
         case TokenType::END: return "END";
+
+        // Неизвестный тип
         default: return "UNKNOWN";
     }
 }
+
+void Lexer::print_tokens(const std::vector<Token>& tokens) {
+    for (const auto& token : tokens) {
+        std::cout << token.value << " ---> " << token_type_to_string(token.type) << std::endl;
+    }
+}
+
+std::set<std::string> Lexer::types = {"int", "float", "double", "char", "bool", "size_t"};
+std::unordered_map<std::string, TokenType> Lexer::operators = {
+    {"+", TokenType::PLUS},
+    {"-", TokenType::MINUS},
+    {"*", TokenType::MULTIPLY},
+    {"/", TokenType::DIVIDE},
+    {"%", TokenType::MODULO},
+    {"^^", TokenType::POWER},
+    {"=", TokenType::ASSIGN},
+    {"+=", TokenType::PLUS_ASSIGN},
+    {"-=", TokenType::MINUS_ASSIGN},
+    {"*=", TokenType::MULTIPLY_ASSIGN},
+    {"/=", TokenType::DIVIDE_ASSIGN},
+    {"%=", TokenType::MODULO_ASSIGN},
+    {">>=", TokenType::RIGHT_SHIFT_ASSIGN},
+    {"<<=", TokenType::LEFT_SHIFT_ASSIGN},
+    {"&=", TokenType::AND_ASSIGN},
+    {"^=", TokenType::XOR_ASSIGN},
+    {"|=", TokenType::OR_ASSIGN},
+    {"==", TokenType::EQUAL},
+    {"!=", TokenType::NOT_EQUAL},
+    {">", TokenType::GREATER},
+    {"<", TokenType::LESS},
+    {">=", TokenType::GREATER_EQUAL},
+    {"<=", TokenType::LESS_EQUAL},
+    {"!", TokenType::NOT},
+    {"&&", TokenType::AND},
+    {"||", TokenType::OR},
+    {"?", TokenType::QUESTION},
+    {"&", TokenType::BIT_AND},
+    {"|", TokenType::BIT_OR},
+    {"^", TokenType::BIT_XOR},
+    {"~", TokenType::BIT_NOT},
+    {"<<", TokenType::LEFT_SHIFT},
+    {">>", TokenType::RIGHT_SHIFT},
+    {"++", TokenType::INCREMENT},
+    {"--", TokenType::DECREMENT},
+    {"[", TokenType::INDEX_LEFT},
+    {"]", TokenType::INDEX_RIGHT},
+    {".", TokenType::DOT},
+    {"->", TokenType::ARROW}
+};
+std::unordered_map<std::string, TokenType> Lexer::punctuators = {
+    {",", TokenType::COMMA},
+    {".", TokenType::DOT},
+    {":", TokenType::COLON},
+    {";", TokenType::SEMICOLON},
+    {"{", TokenType::BRACE_LEFT},
+    {"}", TokenType::BRACE_RIGHT},
+    {"(", TokenType::PARENTHESIS_LEFT},
+    {")", TokenType::PARENTHESIS_RIGHT}
+};
+std::unordered_map<std::string, TokenType> Lexer::keywords = {
+    {"if", TokenType::IF},
+    {"else", TokenType::ELSE},
+    {"for", TokenType::FOR},
+    {"while", TokenType::WHILE},
+    {"struct", TokenType::STRUCT},
+    {"break", TokenType::BREAK},
+    {"continue", TokenType::CONTINUE},
+    {"const", TokenType::CONST},
+    {"do", TokenType::DO},
+    {"false", TokenType::FALSE},
+    {"true", TokenType::TRUE},
+    {"return", TokenType::RETURN}
+};
+
+

@@ -1,17 +1,19 @@
 #pragma once
 
 #include <vector>
-#include <unordered_set>
+#include <unordered_map>
+#include <set>
+#include "token.hpp"
 
-#include <token.hpp>
 
 
-void print_tokens(const std::vector<Token>& tokens);
 
 class Lexer{
     public:
         Lexer(const std::string& filename);
         std::vector<Token> tokenize();
+
+        static void print_tokens(const std::vector<Token>& tokens);
 
     private:
 
@@ -19,18 +21,20 @@ class Lexer{
         std::size_t offset;
 
 
-        Token extract_literal(std::string&);
-        Token extract_identifier(std::string&);
-        Token extract_operator(std::string&);
-        Token extract_punctuator(std::string&);
-
-        std::string operator_char = "+-*/%^&|=><!";
-	    std::string punctuator_char = ",()[]{};\":'";
-	
-        std::unordered_set<std::string> valid_ops = {"++", "--", "==", "!=", ">=", "<=", "&&", "||", "+", "-", "*", "/", "%", "&", "|", "=", ">", "<", "!"};
-	    std::unordered_set<std::string> keywords = {"if", "elif", "else", "while", "do", "for", "return", "break", "continue"};
-	    std::unordered_set<std::string> types = {"int", "float", "double", "char", "string", "bool", "void", "struct"};
-
-
+        static std::set<std::string> types;
+        static std::unordered_map<std::string, TokenType> operators;
+        static std::unordered_map<std::string, TokenType> punctuators;
+        static std::unordered_map<std::string, TokenType> keywords;
+        static std::string spec_symbols;
+        std::string operator_char = "+-*/%^&|=<>!~";
     
+        Token extract_literal(const std::string& line);
+        Token extract_type(const std::string& line);
+        Token extract_operator(const std::string& line);
+        Token extract_punctuator(const std::string& line);
+        Token extract_id(const std::string& line);
+        Token extract_keyword(const std::string& line);
+
+        
+        static std::string token_type_to_string(TokenType type);
 };
