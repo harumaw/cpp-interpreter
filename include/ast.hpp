@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 
+
 class Visitor;
 
 struct ASTNode {
@@ -34,10 +35,9 @@ struct Expression: public ASTNode {
 
 using DeclarationSeq = std::vector<std::shared_ptr<Declaration>>;
 
-struct TranslationUnit : public ASTNode {
-	DeclarationSeq declarations;
+struct RootNode : public ASTNode {
+    std::vector<std::shared_ptr<ASTNode>> declarations;
 
-	TranslationUnit(const DeclarationSeq&);
-
-	void accept(Visitor&) override;
+    RootNode(const std::vector<std::shared_ptr<ASTNode>>& declarations);
+    void accept(Visitor& visitor) override;
 };

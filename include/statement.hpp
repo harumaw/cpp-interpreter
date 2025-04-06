@@ -8,6 +8,10 @@
 
 struct VarDeclaration;
 
+
+
+
+
 using StatementSeq = std::vector<std::shared_ptr<Statement>>;
 
 struct CompoundStatement: public Statement {
@@ -43,15 +47,22 @@ struct WhileStatement: public LoopStatement {
 	void accept(Visitor&) override;
 };
 
-struct RepeatStatement: public LoopStatement {
-	std::shared_ptr<Statement> statement;
 
-	RepeatStatement(const std::shared_ptr<Statement>&);
-	void accept(Visitor&) override;
-};
+struct ForStatement : public LoopStatement {
+    std::shared_ptr<ASTNode> initialization; 
+    std::shared_ptr<Expression> condition;   
+    std::shared_ptr<Expression> increment;   
+    std::shared_ptr<Statement> body;         
 
-struct ForStatement: public LoopStatement {
-	void accept(Visitor&) override;
+	ForStatement(
+        std::shared_ptr<ASTNode> initialization,
+        std::shared_ptr<Expression> condition,
+        std::shared_ptr<Expression> increment,
+        std::shared_ptr<Statement> body
+    );
+
+    void accept(Visitor& visitor) override;
+       
 };
 
 struct JumpStatement: public Statement {
@@ -87,3 +98,17 @@ struct ExpressionStatement: public Statement {
 	ExpressionStatement(const std::shared_ptr<Expression>&);
 	void accept(Visitor&) override;
 };
+
+using statement = std::shared_ptr<Statement>;
+using compound_statement = std::shared_ptr<CompoundStatement>;
+using conditional_statement = std::shared_ptr<ConditionalStatement>;
+using loop_statement = std::shared_ptr<LoopStatement>;
+using while_statement = std::shared_ptr<WhileStatement>;
+using for_statement = std::shared_ptr<ForStatement>;
+using jump_statement = std::shared_ptr<JumpStatement>;
+using break_statement = std::shared_ptr<BreakStatement>;
+using continue_statement = std::shared_ptr<ContinueStatement>;
+using return_statement = std::shared_ptr<ReturnStatement>;
+using declaration_statement = std::shared_ptr<DeclarationStatement>;
+using expression_statement = std::shared_ptr<ExpressionStatement>;
+

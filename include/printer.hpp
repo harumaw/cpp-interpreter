@@ -2,7 +2,7 @@
 
 class Printer : public Visitor {
 public:
-	void visit(TranslationUnit&) override;
+	void visit(RootNode&) override;
 public:
 	void visit(Declaration::PtrDeclarator&) override;
 	void visit(Declaration::NoPtrDeclarator&) override;
@@ -16,7 +16,6 @@ public:
 	void visit(ExpressionStatement&) override;
 	void visit(ConditionalStatement&) override;
 	void visit(WhileStatement&) override;
-	void visit(RepeatStatement&) override;
 	void visit(ForStatement&) override;
 	void visit(ReturnStatement&) override;
 	void visit(BreakStatement&) override;

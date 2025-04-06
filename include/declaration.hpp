@@ -8,6 +8,7 @@
 
 struct CompoundStatement;
 
+
 struct Declaration::Declarator {
 	std::string name;
 	Declarator(const std::string&);
@@ -66,3 +67,11 @@ struct FuncDeclaration: public Declaration {
 
 	void accept(Visitor&) override;
 };
+
+using node = std::shared_ptr<RootNode>;
+using declaration = std::shared_ptr<Declaration>;
+using func_declaration = std::shared_ptr<FuncDeclaration>;
+using parameter_declaration = std::shared_ptr<ParameterDeclaration>;
+using var_declaration = std::shared_ptr<VarDeclaration>;
+using init_declarator = std::shared_ptr<Declaration::InitDeclarator>;
+using declarator = std::shared_ptr<Declaration::Declarator>;

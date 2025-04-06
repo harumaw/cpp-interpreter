@@ -13,36 +13,38 @@ class Parser {
 public:
 	Parser(const std::vector<Token>&);
 
-	std::shared_ptr<TranslationUnit> parse();
-	std::shared_ptr<Declaration> parse_declaration();
-	std::shared_ptr<FuncDeclaration> parse_function_declaration();
-	std::shared_ptr<ParameterDeclaration> parse_parameter_declaration();
-	std::shared_ptr<VarDeclaration> parse_var_declaration();
-	std::shared_ptr<Declaration::InitDeclarator> parse_init_declarator();
-	std::shared_ptr<Declaration::Declarator> parse_declarator();
+	std::shared_ptr<RootNode> parse();
+	std::shared_ptr<RootNode> parse_root();
+	declaration parse_declaration();
+	func_declaration parse_function_declaration();
+	parameter_declaration parse_parameter_declaration();
+	var_declaration parse_var_declaration();
+	init_declarator parse_init_declarator();
+	declarator parse_declarator();
 
-	std::shared_ptr<Statement> parse_statement();
-	std::shared_ptr<CompoundStatement> parse_compound_statement();
-	std::shared_ptr<ConditionalStatement> parse_conditional_statement();
-	std::shared_ptr<LoopStatement> parse_loop_statement();
-	std::shared_ptr<WhileStatement> parse_while_statement();
-	std::shared_ptr<ForStatement> parse_for_statement();
-	std::shared_ptr<RepeatStatement> parse_repeat_statement();
-	std::shared_ptr<JumpStatement> parse_jump_statement();
-	std::shared_ptr<BreakStatement> parse_break_statement();
-	std::shared_ptr<ContinueStatement> parse_continue_statement();
-	std::shared_ptr<ReturnStatement> parse_return_statement();
-	std::shared_ptr<DeclarationStatement> parse_declaration_statement();
-	std::shared_ptr<ExpressionStatement> parse_expression_statement();
 
-	std::shared_ptr<Expression> parse_expression();
-	std::shared_ptr<BinaryExpression> parse_binary_expression(int);
-	std::shared_ptr<UnaryExpression> parse_unary_expression();
-	std::shared_ptr<PostfixExpression> parse_postfix_expression();
-	std::vector<std::shared_ptr<Expression>> parse_function_call_expression();
-	std::shared_ptr<Expression> parse_subscript_expression();
-	std::shared_ptr<PrimaryExpression> parse_primary_expression();
-	std::shared_ptr<ParenthesizedExpression> parse_parenthesized_expression();
+	statement parse_statement();
+	compound_statement parse_compound_statement();
+	conditional_statement parse_conditional_statement();
+	loop_statement parse_loop_statement();
+	while_statement parse_while_statement();
+	for_statement parse_for_statement();
+	jump_statement parse_jump_statement();
+	break_statement parse_break_statement();
+	continue_statement parse_continue_statement();
+	return_statement parse_return_statement();
+	declaration_statement parse_declaration_statement();
+	expression_statement parse_expression_statement();
+
+
+	expression parse_expression();
+	binary_expression parse_binary_expression(int);
+	unary_expression parse_unary_expression();
+	postfix_expression parse_postfix_expression();
+	func_param parse_function_call_expression();
+	expression parse_subscript_expression();
+	primary_expression parse_primary_expression();
+	parentsized_expression parse_parenthesized_expression();
 
 private:
 	std::vector<Token> tokens;

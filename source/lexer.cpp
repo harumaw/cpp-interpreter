@@ -158,23 +158,17 @@ Token Lexer::extract_type(const std::string& line) {
 
 std::string Lexer::token_type_to_string(TokenType type) {
     switch (type) {
-        // Литералы
+    
         case TokenType::LITERAL_NUM: return "LITERAL_NUM";
         case TokenType::LITERAL_CHAR: return "LITERAL_CHAR";
         case TokenType::LITERAL_STRING: return "LITERAL_STRING";
-
-        // Типы данных
         case TokenType::TYPE: return "TYPE";
-
-        // Арифметические операторы
         case TokenType::PLUS: return "PLUS";
         case TokenType::MINUS: return "MINUS";
         case TokenType::MULTIPLY: return "MULTIPLY";
         case TokenType::DIVIDE: return "DIVIDE";
         case TokenType::MODULO: return "MODULO";
         case TokenType::POWER: return "POWER";
-
-        // Операторы присваивания
         case TokenType::ASSIGN: return "ASSIGN";
         case TokenType::PLUS_ASSIGN: return "PLUS_ASSIGN";
         case TokenType::MINUS_ASSIGN: return "MINUS_ASSIGN";
@@ -186,40 +180,28 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TokenType::AND_ASSIGN: return "AND_ASSIGN";
         case TokenType::XOR_ASSIGN: return "XOR_ASSIGN";
         case TokenType::OR_ASSIGN: return "OR_ASSIGN";
-
-        // Операторы сравнения
         case TokenType::EQUAL: return "EQUAL";
         case TokenType::NOT_EQUAL: return "NOT_EQUAL";
         case TokenType::GREATER: return "GREATER";
         case TokenType::LESS: return "LESS";
         case TokenType::GREATER_EQUAL: return "GREATER_EQUAL";
         case TokenType::LESS_EQUAL: return "LESS_EQUAL";
-
-        // Логические операторы
         case TokenType::NOT: return "NOT";
         case TokenType::AND: return "AND";
         case TokenType::OR: return "OR";
         case TokenType::QUESTION: return "QUESTION";
-
-        // Побитовые операторы
         case TokenType::BIT_AND: return "BIT_AND";
         case TokenType::BIT_OR: return "BIT_OR";
         case TokenType::BIT_XOR: return "BIT_XOR";
         case TokenType::BIT_NOT: return "BIT_NOT";
         case TokenType::LEFT_SHIFT: return "LEFT_SHIFT";
         case TokenType::RIGHT_SHIFT: return "RIGHT_SHIFT";
-
-        // Унарные операторы
         case TokenType::INCREMENT: return "INCREMENT";
         case TokenType::DECREMENT: return "DECREMENT";
-
-        // Индексация и доступ
         case TokenType::INDEX_LEFT: return "INDEX_LEFT";
         case TokenType::INDEX_RIGHT: return "INDEX_RIGHT";
         case TokenType::DOT: return "DOT";
         case TokenType::ARROW: return "ARROW";
-
-        // Разделители
         case TokenType::COMMA: return "COMMA";
         case TokenType::COLON: return "COLON";
         case TokenType::SEMICOLON: return "SEMICOLON";
@@ -228,8 +210,6 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TokenType::BRACE_LEFT: return "BRACE_LEFT";
         case TokenType::BRACE_RIGHT: return "BRACE_RIGHT";
         case TokenType::PUNCTUATOR: return "PUNCTUATOR";
-
-        // Идентификаторы и ключевые слова
         case TokenType::ID: return "ID";
         case TokenType::KEYWORD: return "KEYWORD";
         case TokenType::IF: return "IF";
@@ -244,11 +224,8 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TokenType::FALSE: return "FALSE";
         case TokenType::TRUE: return "TRUE";
         case TokenType::RETURN: return "RETURN";
-
-        // Конец файла
         case TokenType::END: return "END";
 
-        // Неизвестный тип
         default: return "UNKNOWN";
     }
 }

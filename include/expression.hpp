@@ -6,6 +6,8 @@
 
 #include "ast.hpp"
 
+
+
 struct BinaryExpression: public Expression {
 	virtual ~BinaryExpression() = default;
 	virtual void accept(Visitor&) override = 0;
@@ -127,3 +129,11 @@ struct ParenthesizedExpression: public PrimaryExpression {
 	ParenthesizedExpression(const std::shared_ptr<Expression>&);
 	void accept(Visitor&) override;
 };
+
+using expression = std::shared_ptr<Expression>;
+using binary_expression = std::shared_ptr<BinaryExpression>;
+using unary_expression = std::shared_ptr<UnaryExpression>;
+using postfix_expression = std::shared_ptr<PostfixExpression>;
+using primary_expression = std::shared_ptr<PrimaryExpression>;
+using parentsized_expression = std::shared_ptr<ParenthesizedExpression>;
+using func_param = std::vector<std::shared_ptr<Expression>>;

@@ -3,15 +3,15 @@
 #include <iostream>
 
 enum class TokenType {
-        // Литералы
+     
         LITERAL_NUM,
         LITERAL_CHAR,
         LITERAL_STRING,
     
-        // Типы данных
+     
         TYPE,
     
-        // Арифметические операторы
+    
         PLUS,
         MINUS,
         MULTIPLY,
@@ -19,7 +19,7 @@ enum class TokenType {
         MODULO,
         POWER,
     
-        // Операторы присваивания
+    
         ASSIGN,
         PLUS_ASSIGN,
         MINUS_ASSIGN,
@@ -32,7 +32,6 @@ enum class TokenType {
         XOR_ASSIGN,
         OR_ASSIGN,
     
-        // Операторы сравнения
         EQUAL,
         NOT_EQUAL,
         GREATER,
@@ -40,13 +39,12 @@ enum class TokenType {
         GREATER_EQUAL,
         LESS_EQUAL,
     
-        // Логические операторы
+    
         NOT,
         AND,
         OR,
         QUESTION,
-    
-        // Побитовые операторы
+ 
         BIT_AND,
         BIT_OR,
         BIT_XOR,
@@ -54,17 +52,17 @@ enum class TokenType {
         LEFT_SHIFT,
         RIGHT_SHIFT,
     
-        // Унарные операторы
+
         INCREMENT,
         DECREMENT,
     
-        // Индексация и доступ
+
         INDEX_LEFT,
         INDEX_RIGHT,
         DOT,
         ARROW,
     
-        // Разделители
+
         COMMA,
         COLON,
         SEMICOLON,
@@ -74,7 +72,7 @@ enum class TokenType {
         BRACE_RIGHT,
         PUNCTUATOR,
     
-        // Идентификаторы и ключевые слова
+     
         ID,
         KEYWORD,
         IF,
@@ -90,7 +88,7 @@ enum class TokenType {
         TRUE,
         RETURN,
     
-        // Конец файла
+      
         END
 };
 

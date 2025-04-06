@@ -25,14 +25,11 @@ WhileStatement::WhileStatement(
 void WhileStatement::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
-
-RepeatStatement::RepeatStatement(
-		const std::shared_ptr<Statement>& statement
-	) : statement(statement) {}
-
-void RepeatStatement::accept(Visitor& visitor) {
-	visitor.visit(*this);
-}
+ForStatement::ForStatement(std::shared_ptr<ASTNode> initialization,
+	std::shared_ptr<Expression> condition,
+	std::shared_ptr<Expression> increment,
+	std::shared_ptr<Statement> body
+) : initialization(initialization), condition(condition), increment(increment), body(body) {}
 
 void ForStatement::accept(Visitor& visitor) {
 	visitor.visit(*this);
