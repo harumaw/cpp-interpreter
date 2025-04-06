@@ -86,6 +86,13 @@ Token Lexer::extract_id(const std::string& line) {
     }
 
     std::string value = line.substr(start, offset - start);
+
+ 
+    if (types.find(value) != types.end()) {
+        return {TokenType::TYPE, value};
+    }
+
+   
     if (keywords.find(value) != keywords.end()) {
         return {keywords[value], value};
     }
