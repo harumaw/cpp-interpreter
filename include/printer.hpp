@@ -3,14 +3,17 @@
 class Printer : public Visitor {
 public:
 	void visit(RootNode&) override;
-public:
+	int indent_level = 0;
+
+	void indent();
+
 	void visit(Declaration::PtrDeclarator&) override;
 	void visit(Declaration::NoPtrDeclarator&) override;
 	void visit(Declaration::InitDeclarator&) override;
 	void visit(VarDeclaration&) override;
 	void visit(ParameterDeclaration&) override;
 	void visit(FuncDeclaration&) override;
-public:
+
 	void visit(CompoundStatement&) override;
 	void visit(DeclarationStatement&) override;
 	void visit(ExpressionStatement&) override;
@@ -20,7 +23,7 @@ public:
 	void visit(ReturnStatement&) override;
 	void visit(BreakStatement&) override;
 	void visit(ContinueStatement&) override;
-public:
+
 	void visit(BinaryOperation&) override;
 	void visit(PrefixExpression&) override;
 	void visit(PostfixIncrementExpression&) override;
