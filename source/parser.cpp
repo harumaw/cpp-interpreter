@@ -15,27 +15,23 @@ Parser::Parser(
     ) : tokens(tokens), offset(0) {}
 
 
-std::shared_ptr<RootNode> Parser::parse() {
-    return parse_root();
-}
-
-std::shared_ptr<RootNode> Parser::parse_root() {
-    std::vector<std::shared_ptr<ASTNode>> nodes;
-
-    while (!match_token(TokenType::END)) {
-        //std::cout << "Parsing token: " << tokens[offset].value << std::endl;
-
-        if (check_token(TokenType::TYPE)) {
-            nodes.push_back(parse_declaration());
-        } else if (check_token(TokenType::IF, TokenType::WHILE, TokenType::FOR, TokenType::RETURN, TokenType::BREAK, TokenType::CONTINUE)) {
-            nodes.push_back(parse_statement());
-        } else {
-            nodes.push_back(parse_expression_statement());
+    std::shared_ptr<RootNode> Parser::parse() {
+        std::vector<std::shared_ptr<ASTNode>> ast_nodes;
+    
+        while (!match_token(TokenType::END)) {
+            if (check_token(TokenType::TYPE)) {
+                // Если это тип, значит, это декларация
+                ast_nodes.push_back(parse_declaration());
+            } else {
+                // В противном случае это оператор
+                ast_nodes.push_back(parse_statement());
+            }
         }
+    
+        return std::make_shared<RootNode>(ast_nodes);
     }
 
-    return std::make_shared<RootNode>(nodes);
-}
+
 
 declaration Parser::parse_declaration() {
     if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
@@ -52,12 +48,17 @@ declaration Parser::parse_declaration() {
 func_declaration Parser::parse_function_declaration() {
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_declarator();
+    
+
     extract_token(TokenType::PARENTHESIS_LEFT);
+    
 
     std::vector<std::shared_ptr<ParameterDeclaration>> args;
     if (!match_token(TokenType::PARENTHESIS_RIGHT)) {
         while (true) {
             args.push_back(parse_parameter_declaration());
+            
+
             if (tokens[offset].value == ",") {
                 ++offset;
             } else if (tokens[offset].value == ")") {
@@ -68,6 +69,8 @@ func_declaration Parser::parse_function_declaration() {
             }
         }
     }
+
+
     std::shared_ptr<CompoundStatement> body;
     if (match_token(TokenType::BRACE_LEFT)) {
         body = parse_compound_statement();
@@ -78,12 +81,14 @@ func_declaration Parser::parse_function_declaration() {
 }
 
 parameter_declaration Parser::parse_parameter_declaration() {
-    return std::make_shared<ParameterDeclaration>(extract_token(TokenType::TYPE), parse_init_declarator());
+    // dobavitb proverku na otsutstvie parametrov
+    auto type = extract_token(TokenType::TYPE);
+    auto declarator = parse_init_declarator();
+
+
+    return std::make_shared<ParameterDeclaration>(type, declarator);
 }
-
 var_declaration Parser::parse_var_declaration() {
-    //std::cout << "Parsing variable declaration, current token: " << tokens[offset].value << std::endl;
-
     auto type = extract_token(TokenType::TYPE);
     std::vector<std::shared_ptr<Declaration::InitDeclarator>> declarator_list;
 
@@ -104,15 +109,15 @@ var_declaration Parser::parse_var_declaration() {
 init_declarator Parser::parse_init_declarator() {
     auto declarator = parse_declarator();
     std::shared_ptr<Expression> initializer;
+
     if (match_token(TokenType::ASSIGN)) {
         initializer = parse_expression();
     }
-    return std::make_shared<Declaration::InitDeclarator>(declarator, initializer);	
+
+    return std::make_shared<Declaration::InitDeclarator>(declarator, initializer);
 }
 
 declarator Parser::parse_declarator() {
-   // std::cout << "Parsing declarator, current token: " << tokens[offset].value << std::endl;
-
     if (match_pattern(TokenType::MULTIPLY, TokenType::ID)) {
         extract_token(TokenType::MULTIPLY);
         return std::make_shared<Declaration::PtrDeclarator>(extract_token(TokenType::ID));
@@ -122,7 +127,6 @@ declarator Parser::parse_declarator() {
         throw std::runtime_error("Declarator : Unexpected token " + tokens[offset].value);
     }
 }
-
 statement Parser::parse_statement() {
     if (match_token(TokenType::BRACE_LEFT)) {
         return parse_compound_statement();
@@ -147,7 +151,6 @@ compound_statement Parser::parse_compound_statement() {
 }
 
 conditional_statement Parser::parse_conditional_statement() {
-    std::cout << "test";
     extract_token(TokenType::PARENTHESIS_LEFT); 
     auto if_condition = parse_expression();    
     extract_token(TokenType::PARENTHESIS_RIGHT); 
@@ -155,7 +158,7 @@ conditional_statement Parser::parse_conditional_statement() {
     auto if_branch = std::make_pair(if_condition, if_statement);
 
     std::shared_ptr<Statement> else_branch;
-    if (match_token(TokenType::ELSE)) {        // Проверяем наличие else
+    if (match_token(TokenType::ELSE)) {      
         else_branch = parse_statement();
     }
 
@@ -163,13 +166,12 @@ conditional_statement Parser::parse_conditional_statement() {
 }
 
 loop_statement Parser::parse_loop_statement() {
-    //std::cout << tokens[offset].value << std::endl;
     if (match_token(TokenType::WHILE)) {
         return parse_while_statement();
     } else if (match_token(TokenType::FOR)) {
         return parse_for_statement();
     } else {
-        throw std::runtime_error("Unexpected token in loop statement");
+        throw std::runtime_error("Unexpected token in loop statement:" + tokens[offset].value);
     }
 }
 
@@ -182,17 +184,13 @@ while_statement Parser::parse_while_statement() {
 }
 
 for_statement Parser::parse_for_statement() {
-    //std::cout << "Parsing for statement, current token: " << tokens[offset].value << std::endl;
-
-    // Ожидаем открывающую скобку
+    
+   
     extract_token(TokenType::PARENTHESIS_LEFT);
-    //std::cout << "Parsed '(', current token: " << tokens[offset].value << std::endl;
-
-    // Парсим инициализацию
+    
     std::shared_ptr<ASTNode> initialization;
     if (!check_token(TokenType::SEMICOLON)) {
         if (check_token(TokenType::TYPE)) {
-            //std::cout << "Parsing variable declaration in for initialization" << std::endl;
             initialization = parse_var_declaration();
         } else {
             //std::cout << "Parsing expression in for initialization" << std::endl;
@@ -209,9 +207,7 @@ for_statement Parser::parse_for_statement() {
         condition = parse_expression();
     }
     extract_token(TokenType::SEMICOLON);
-    //std::cout << "Parsed condition, current token: " << tokens[offset].value << std::endl;
-
-    // Парсим инкремент
+    
     std::shared_ptr<Expression> increment;
     if (!check_token(TokenType::PARENTHESIS_RIGHT)) {
         //std::cout << "Parsing increment in for statement" << std::endl;

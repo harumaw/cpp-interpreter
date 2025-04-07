@@ -1,0 +1,37 @@
+1)
+int x = 0;
+int y = 10;
+
+for (int a = 0; b < y; c++) {
+    x = x + i;
+}
+
+while (x < 100) {
+    x = x + 1;
+}
+
+2)
+int add(int a, int b) {
+    return a + b;
+}
+
+int result = add(10, 20);
+
+3)
+int x = 0;
+
+x++;
+x--;
+
+4)
+int x = 0;
+
+while (x < 5) {
+    x++;
+}
+
+5)
+
+void print_hello() {
+    return;
+}
