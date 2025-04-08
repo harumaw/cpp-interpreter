@@ -17,7 +17,7 @@ struct Declaration::Declarator {
 	virtual void accept(Visitor&) = 0;
 };
 
-struct Declaration::NoPtrDeclarator : public Declaration::Declarator{
+struct Declaration::SimpleDeclarator : public Declaration::Declarator{
 	using Declarator::Declarator;
 
 	void accept(Visitor&) override;

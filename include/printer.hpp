@@ -8,7 +8,7 @@ public:
 	void indent();
 
 	void visit(Declaration::PtrDeclarator&) override;
-	void visit(Declaration::NoPtrDeclarator&) override;
+	void visit(Declaration::SimpleDeclarator&) override;
 	void visit(Declaration::InitDeclarator&) override;
 	void visit(VarDeclaration&) override;
 	void visit(ParameterDeclaration&) override;

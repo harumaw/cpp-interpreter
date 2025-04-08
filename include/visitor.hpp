@@ -12,7 +12,7 @@ public:
 	virtual void visit(RootNode&) = 0;
 public:
 	virtual void visit(Declaration::PtrDeclarator&) = 0;
-	virtual void visit(Declaration::NoPtrDeclarator&) = 0;
+	virtual void visit(Declaration::SimpleDeclarator&) = 0;
 	virtual void visit(Declaration::InitDeclarator&) = 0;
 	virtual void visit(VarDeclaration&) = 0;
 	virtual void visit(ParameterDeclaration&) = 0;

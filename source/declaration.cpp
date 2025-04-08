@@ -4,7 +4,7 @@ Declaration::Declarator::Declarator(
 	const std::string& name
 	) : name(name) {}
 
-void Declaration::NoPtrDeclarator::accept(Visitor& visitor) {
+void Declaration::SimpleDeclarator::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
 

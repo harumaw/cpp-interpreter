@@ -19,9 +19,9 @@ void Printer::visit(RootNode& node) {
     std::cout << "}\n";
 }
 
-void Printer::visit(Declaration::NoPtrDeclarator& node) {
+void Printer::visit(Declaration::SimpleDeclarator& node) {
     indent();
-    std::cout << "NoPtrDeclarator: " << node.name << "\n";
+    std::cout << "SimpleDeclarator: " << node.name << "\n";
 }
 
 void Printer::visit(Declaration::PtrDeclarator& node) {

@@ -19,7 +19,7 @@ struct Statement: public ASTNode {
 struct Declaration: public ASTNode {
 
 	struct Declarator;
-	struct NoPtrDeclarator;
+	struct SimpleDeclarator;
 	struct PtrDeclarator;
 
 	struct InitDeclarator;

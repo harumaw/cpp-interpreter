@@ -90,7 +90,6 @@ func_declaration Parser::parse_function_declaration() {
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_declarator();
     
-
     extract_token(TokenType::PARENTHESIS_LEFT);
     
 
@@ -164,7 +163,7 @@ declarator Parser::parse_declarator() {
         extract_token(TokenType::MULTIPLY);
         return std::make_shared<Declaration::PtrDeclarator>(extract_token(TokenType::ID));
     } else if (check_token(TokenType::ID)) {
-        return std::make_shared<Declaration::NoPtrDeclarator>(extract_token(TokenType::ID));
+        return std::make_shared<Declaration::SimpleDeclarator>(extract_token(TokenType::ID));
     } else {
         throw std::runtime_error("Declarator : Unexpected token " + tokens[offset].value);
     }
