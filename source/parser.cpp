@@ -249,9 +249,14 @@ continue_statement Parser::parse_continue_statement() {
 }
 
 return_statement Parser::parse_return_statement() {
-    auto expression = parse_expression();
+    std::shared_ptr<Expression> expression = nullptr;
+    if (!check_token(TokenType::SEMICOLON)) {
+        expression = parse_expression();
+    }
+
     extract_token(TokenType::SEMICOLON);
-    return std::make_shared<ReturnStatement>(expression);
+
+    return std::make_shared<ReturnStatement>(expression); 
 }
 
 declaration_statement Parser::parse_declaration_statement() {
@@ -289,35 +294,38 @@ unary_expression Parser::parse_unary_expression() {
 
 postfix_expression Parser::parse_postfix_expression() {
     std::shared_ptr<PostfixExpression> base = parse_primary_expression();
+
     while (true) {
         if (match_token(TokenType::INCREMENT)) {
             base = std::make_shared<PostfixIncrementExpression>(base);
         } else if (match_token(TokenType::DECREMENT)) {
             base = std::make_shared<PostfixDecrementExpression>(base);
         } else if (match_token(TokenType::PARENTHESIS_LEFT)) {
-            base = std::make_shared<FunctionCallExpression>(base, parse_function_call_expression());
+            std::vector<std::shared_ptr<Expression>> args = parse_function_call_expression();
+            base = std::make_shared<FunctionCallExpression>(base, args);
         } else if (match_token(TokenType::INDEX_LEFT)) {
-            base = std::make_shared<SubscriptExpression>(base, parse_subscript_expression());
+            std::shared_ptr<Expression> index = parse_subscript_expression();
+            base = std::make_shared<SubscriptExpression>(base, index);
         } else {
-            break;
+            break; 
         }
     }
+
     return base;
 }
 
 func_param Parser::parse_function_call_expression() {
     std::vector<std::shared_ptr<Expression>> args;
+
     if (!match_token(TokenType::PARENTHESIS_RIGHT)) {
-        while (true) {
-            args.push_back(parse_expression());
-            if (!match_token(TokenType::COMMA)) {
-                break;
-            }
-            extract_token(TokenType::COMMA);
-        }
+        do {
+            args.push_back(parse_expression());  
+        } while (match_token(TokenType::COMMA));  
     }
-    extract_token(TokenType::PARENTHESIS_RIGHT);
-    return args;
+
+    extract_token(TokenType::PARENTHESIS_RIGHT);  
+
+    return args; 
 }
 
 std::shared_ptr<Expression> Parser::parse_subscript_expression() {

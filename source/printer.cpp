@@ -197,7 +197,12 @@ void Printer::visit(ReturnStatement& node) {
     indent();
     std::cout << "ReturnStatement:\n";
     ++indent_level;
-    node.expression->accept(*this);
+    if(node.expression) {
+        node.expression->accept(*this);
+    } else {
+        indent();
+        std::cout << ";\n";
+    }
     --indent_level;
 }
 
