@@ -19,6 +19,7 @@ public:
 	func_declaration parse_function_declaration();
 	parameter_declaration parse_parameter_declaration();
 	var_declaration parse_var_declaration();
+	struct_declaration parse_struct_declaration();
 	init_declarator parse_init_declarator();
 	declarator parse_declarator();
 
@@ -38,6 +39,7 @@ public:
 
 
 	expression parse_expression();
+	expression parse_member_access(std::shared_ptr<Expression>);
 	binary_expression parse_binary_expression(int);
 	unary_expression parse_unary_expression();
 	postfix_expression parse_postfix_expression();

@@ -19,11 +19,9 @@ Parser::Parser(
         std::vector<std::shared_ptr<ASTNode>> ast_nodes;
     
         while (!match_token(TokenType::END)) {
-            if (check_token(TokenType::TYPE)) {
-                // Если это тип, значит, это декларация
+            if (check_token(TokenType::TYPE) || check_token(TokenType::STRUCT)) {
                 ast_nodes.push_back(parse_declaration());
             } else {
-                // В противном случае это оператор
                 ast_nodes.push_back(parse_statement());
             }
         }
@@ -35,14 +33,57 @@ Parser::Parser(
 
 declaration Parser::parse_declaration() {
     if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
-        //std::cout << "jump";
         return parse_function_declaration();
-    } else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID)) {
-        return parse_var_declaration();
-    } else {
-        //std::cout << "stop moment";
-        throw std::runtime_error("Declaration : Unexpected token " + tokens[offset].value);
     }
+    else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID)) {
+        return parse_var_declaration();
+    }
+    else if (match_pattern(TokenType::STRUCT, TokenType::ID)) {
+        return parse_struct_declaration();  
+    } 
+        else {
+            throw std::runtime_error("Declaration : Unexpected token " + tokens[offset].value);
+        }
+    }
+
+
+
+
+
+
+struct_declaration Parser::parse_struct_declaration() {
+    extract_token(TokenType::STRUCT);
+
+    std::string struct_name = tokens[offset].value;
+    extract_token(TokenType::ID);
+
+
+    std::vector<std::shared_ptr<VarDeclaration>> members;
+
+ 
+    extract_token(TokenType::BRACE_LEFT);  
+    
+    while (!check_token(TokenType::BRACE_RIGHT)) {
+        auto field = parse_var_declaration();
+        members.push_back(std::dynamic_pointer_cast<VarDeclaration>(field));
+    }
+    
+    extract_token(TokenType::BRACE_RIGHT);  
+    extract_token(TokenType::SEMICOLON);
+    
+ 
+    return std::make_shared<StructDeclaration>(struct_name, members);
+}
+
+
+
+expression Parser::parse_member_access(std::shared_ptr<Expression> base) {
+    extract_token(TokenType::DOT);  
+    
+    std::string member_name = tokens[offset].value;
+    extract_token(TokenType::ID);
+
+    return std::make_shared<StructMemberAccessExpression>(base, member_name);
 }
 
 func_declaration Parser::parse_function_declaration() {

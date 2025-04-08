@@ -49,3 +49,12 @@ ParameterDeclaration::ParameterDeclaration(
 void ParameterDeclaration::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
+
+StructDeclaration:: StructDeclaration 
+    (const std::string& name, 
+                      const std::vector<std::shared_ptr<VarDeclaration>>& members)
+        : name(name), members(members) {}
+
+void StructDeclaration::accept(Visitor& visitor) {
+        visitor.visit(*this);
+}

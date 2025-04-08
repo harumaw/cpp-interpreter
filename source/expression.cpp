@@ -108,3 +108,13 @@ ParenthesizedExpression::ParenthesizedExpression(
 void ParenthesizedExpression::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
+
+
+StructMemberAccessExpression::StructMemberAccessExpression
+(
+	const std::shared_ptr<Expression>& base, const std::string& member)
+        : base(base), member(member) {}
+
+void StructMemberAccessExpression::accept(Visitor& visitor){
+        visitor.visit(*this);
+    }

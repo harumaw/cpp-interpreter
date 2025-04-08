@@ -1,25 +1,6 @@
+1) 
+
+int arr[5] = {1, 2, 3, 4, 5};
+int x = arr[2];
+
 2)
-int add(int a, int b) {
-    return a + b;
-}
-
-int result = add(10, 20);
-
-3)
-int x = 0;
-
-x++;
-x--;
-
-4)
-int x = 0;
-
-while (x < 5) {
-    x++;
-}
-
-5)
-
-void print_hello() {
-    return;
-}

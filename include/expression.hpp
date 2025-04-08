@@ -130,6 +130,14 @@ struct ParenthesizedExpression: public PrimaryExpression {
 	void accept(Visitor&) override;
 };
 
+struct StructMemberAccessExpression : public Expression {
+	std::shared_ptr<Expression> base;
+	std::string member;
+
+	StructMemberAccessExpression(const std::shared_ptr<Expression>&, const std::string&);
+	void accept(Visitor&) override;
+};
+
 using expression = std::shared_ptr<Expression>;
 using binary_expression = std::shared_ptr<BinaryExpression>;
 using unary_expression = std::shared_ptr<UnaryExpression>;

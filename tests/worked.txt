@@ -57,3 +57,32 @@ for (int a = 0; b < y; c++) {
 while (x < 100) {
     x = x + 1;
 }
+
+8)
+int add(int a, int b) {
+    return a + b;
+}
+
+int result = add(10, 20);
+
+
+9) 
+int x = 0;
+
+x++;
+x--;
+
+
+10) 
+int x = 0;
+
+while (x < 5) {
+    x++;
+}
+
+
+11)
+
+void print_hello() {
+    return;
+}

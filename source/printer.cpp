@@ -306,3 +306,25 @@ void Printer::visit(ParenthesizedExpression& node) {
     node.expression->accept(*this);
     --indent_level;
 }
+
+void Printer::visit(StructDeclaration& node) {
+    indent();
+    std::cout << "StructDeclaration: " << node.name << "\n";
+    ++indent_level;
+    for (auto& member : node.members) { 
+        member->accept(*this);
+    }
+    --indent_level;
+}
+
+
+void Printer::visit(StructMemberAccessExpression& node) {
+    indent();
+    std::cout << "StructMemberAccessExpression:\n";
+    ++indent_level;
+    node.base->accept(*this);  
+    indent();
+    std::cout << "Member: " << node.member << "\n";
+    --indent_level;
+}
+

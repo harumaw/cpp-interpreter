@@ -17,6 +17,7 @@ public:
 	virtual void visit(VarDeclaration&) = 0;
 	virtual void visit(ParameterDeclaration&) = 0;
 	virtual void visit(FuncDeclaration&) = 0;
+	virtual void visit(StructDeclaration&) = 0;	
 public:
 	virtual void visit(CompoundStatement&) = 0;
 	virtual void visit(DeclarationStatement&) = 0;
@@ -27,6 +28,7 @@ public:
 	virtual void visit(ReturnStatement&) = 0;
 	virtual void visit(BreakStatement&) = 0;
 	virtual void visit(ContinueStatement&) = 0;
+	virtual void visit(StructMemberAccessExpression&) = 0;
 public:
 	virtual void visit(BinaryOperation&) = 0;
 	virtual void visit(PrefixExpression&) = 0;
