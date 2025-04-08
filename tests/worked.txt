@@ -45,3 +45,15 @@ int x = 5;
 if (x > 0) {
     x = x - 1;
 }
+
+7) 
+int x = 0;
+int y = 10;
+
+for (int a = 0; b < y; c++) {
+    x = x + i;
+}
+
+while (x < 100) {
+    x = x + 1;
+}

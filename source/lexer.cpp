@@ -101,15 +101,25 @@ Token Lexer::extract_id(const std::string& line) {
 }
 
 Token Lexer::extract_operator(const std::string& line) {
-    for (const auto& op : operators) {
-        if (line.compare(offset, op.first.size(), op.first) == 0) {
-            offset += op.first.size();
-            return {op.second, op.first};
+    if (offset + 1 < line.size()) {
+        std::string two_char_op = line.substr(offset, 2);
+        auto it = operators.find(two_char_op);
+        if (it != operators.end()) {
+            offset += 2;  
+            return {it->second, two_char_op};  
         }
     }
 
-    offset++;
-    return {TokenType::END, ""};
+    
+    std::string one_char_op(1, line[offset]);
+    auto it = operators.find(one_char_op);
+    if (it != operators.end()) {
+        offset++;  
+        return {it->second, one_char_op};  
+    }
+
+    offset++;  
+    return {TokenType::END, ""};  
 }
 
 Token Lexer::extract_punctuator(const std::string& line) {

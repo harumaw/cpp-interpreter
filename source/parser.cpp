@@ -107,6 +107,7 @@ var_declaration Parser::parse_var_declaration() {
 }
 
 init_declarator Parser::parse_init_declarator() {
+
     auto declarator = parse_declarator();
     std::shared_ptr<Expression> initializer;
 
@@ -184,45 +185,48 @@ while_statement Parser::parse_while_statement() {
 }
 
 for_statement Parser::parse_for_statement() {
-    
-   
-    extract_token(TokenType::PARENTHESIS_LEFT);
-    
+
+
+    extract_token(TokenType::PARENTHESIS_LEFT); 
+  
+
     std::shared_ptr<ASTNode> initialization;
-    if (!check_token(TokenType::SEMICOLON)) {
-        if (check_token(TokenType::TYPE)) {
-            initialization = parse_var_declaration();
+    if (!check_token(TokenType::SEMICOLON)) {  
+        if (check_token(TokenType::TYPE)) {  
+            initialization = parse_var_declaration(); 
         } else {
-            //std::cout << "Parsing expression in for initialization" << std::endl;
-            initialization = parse_expression_statement();
+            initialization = parse_expression_statement();  
         }
+    } else {
+        extract_token(TokenType::SEMICOLON);  
     }
-    extract_token(TokenType::SEMICOLON);
-    //std::cout << "Parsed initialization, current token: " << tokens[offset].value << std::endl;
+   
 
-    // Парсим условие
     std::shared_ptr<Expression> condition;
-    if (!check_token(TokenType::SEMICOLON)) {
-        //std::cout << "Parsing condition in for statement" << std::endl;
-        condition = parse_expression();
+    if (!check_token(TokenType::SEMICOLON)) {  
+        condition = parse_expression();  
     }
-    extract_token(TokenType::SEMICOLON);
-    
+    extract_token(TokenType::SEMICOLON);  
+ 
+
     std::shared_ptr<Expression> increment;
-    if (!check_token(TokenType::PARENTHESIS_RIGHT)) {
-        //std::cout << "Parsing increment in for statement" << std::endl;
-        increment = parse_expression();
+    if (!check_token(TokenType::PARENTHESIS_RIGHT)) {  
+        increment = parse_expression();  
     }
-    extract_token(TokenType::PARENTHESIS_RIGHT);
-    //std::cout << "Parsed increment, current token: " << tokens[offset].value << std::endl;
+    extract_token(TokenType::PARENTHESIS_RIGHT); 
 
-    // Парсим тело цикла
-    //std::cout << "Parsing body of for statement" << std::endl;
-    auto body = parse_statement();
+    extract_token(TokenType::BRACE_LEFT);
+    auto body = parse_statement();  
 
-    //std::cout << "Successfully parsed for statement" << std::endl;
+    extract_token(TokenType::BRACE_RIGHT);
+
     return std::make_shared<ForStatement>(initialization, condition, increment, body);
 }
+
+
+
+
+
 jump_statement Parser::parse_jump_statement() {
     if (match_token(TokenType::BREAK)) {
         return parse_break_statement();
