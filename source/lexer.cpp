@@ -283,8 +283,6 @@ std::unordered_map<std::string, TokenType> Lexer::operators = {
     {">>", TokenType::RIGHT_SHIFT},
     {"++", TokenType::INCREMENT},
     {"--", TokenType::DECREMENT},
-    {"[", TokenType::INDEX_LEFT},
-    {"]", TokenType::INDEX_RIGHT},
     {".", TokenType::DOT},
     {"->", TokenType::ARROW}
 };
@@ -296,7 +294,9 @@ std::unordered_map<std::string, TokenType> Lexer::punctuators = {
     {"{", TokenType::BRACE_LEFT},
     {"}", TokenType::BRACE_RIGHT},
     {"(", TokenType::PARENTHESIS_LEFT},
-    {")", TokenType::PARENTHESIS_RIGHT}
+    {")", TokenType::PARENTHESIS_RIGHT},
+    {"[", TokenType::INDEX_LEFT},
+    {"]", TokenType::INDEX_RIGHT}
 };
 std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"if", TokenType::IF},

@@ -58,3 +58,14 @@ StructDeclaration:: StructDeclaration
 void StructDeclaration::accept(Visitor& visitor) {
         visitor.visit(*this);
 }
+
+
+ArrayDeclaration::ArrayDeclaration(const std::string &type,
+	const std::vector<std::shared_ptr<InitDeclarator>> &declaratorList,
+	const std::shared_ptr<Expression> &size,
+	const std::vector<std::shared_ptr<Expression>> &initValues)
+: VarDeclaration(type, declaratorList), size(size), init_values(initValues) {}
+
+void ArrayDeclaration::accept(Visitor &visitor) {
+	visitor.visit(*this);
+}

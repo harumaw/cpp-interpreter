@@ -14,6 +14,7 @@ public:
 	void visit(ParameterDeclaration&) override;
 	void visit(FuncDeclaration&) override;
 	void visit(StructDeclaration&) override;
+	void visit(ArrayDeclaration&) override;
 
 	void visit(CompoundStatement&) override;
 	void visit(DeclarationStatement&) override;
@@ -25,6 +26,7 @@ public:
 	void visit(BreakStatement&) override;
 	void visit(ContinueStatement&) override;
 	void visit(StructMemberAccessExpression&) override;
+	void visit(ArrayAccessExpression&) override;
 
 	void visit(BinaryOperation&) override;
 	void visit(PrefixExpression&) override;

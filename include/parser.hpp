@@ -20,6 +20,7 @@ public:
 	parameter_declaration parse_parameter_declaration();
 	var_declaration parse_var_declaration();
 	struct_declaration parse_struct_declaration();
+	array_declaration parse_array_declaration();
 	init_declarator parse_init_declarator();
 	declarator parse_declarator();
 

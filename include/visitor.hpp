@@ -18,6 +18,7 @@ public:
 	virtual void visit(ParameterDeclaration&) = 0;
 	virtual void visit(FuncDeclaration&) = 0;
 	virtual void visit(StructDeclaration&) = 0;	
+	virtual void visit(ArrayDeclaration&) = 0;
 public:
 	virtual void visit(CompoundStatement&) = 0;
 	virtual void visit(DeclarationStatement&) = 0;
@@ -43,4 +44,5 @@ public:
 	virtual void visit(BoolLiteral&) = 0;
 	virtual void visit(IdentifierExpression&) = 0;
 	virtual void visit(ParenthesizedExpression&) = 0;
+	virtual void visit(ArrayAccessExpression&) = 0;
 };

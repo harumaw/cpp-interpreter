@@ -78,6 +78,20 @@ struct StructDeclaration: public Declaration {
 
 };
 
+struct ArrayDeclaration: public VarDeclaration{
+	std::shared_ptr<Expression> size;
+	std::vector<std::shared_ptr<Expression>> init_values;
+
+	ArrayDeclaration(const std::string &type,
+		const std::vector<std::shared_ptr<InitDeclarator>> &declaratorList,
+		const std::shared_ptr<Expression> &size,
+		const std::vector<std::shared_ptr<Expression>> &initValues = {});
+
+	void accept(Visitor &visitor) override;
+};
+
+
+
 
 using node = std::shared_ptr<RootNode>;
 using declaration = std::shared_ptr<Declaration>;
@@ -87,3 +101,4 @@ using var_declaration = std::shared_ptr<VarDeclaration>;
 using init_declarator = std::shared_ptr<Declaration::InitDeclarator>;
 using declarator = std::shared_ptr<Declaration::Declarator>;
 using struct_declaration = std::shared_ptr<StructDeclaration>;
+using array_declaration = std::shared_ptr<ArrayDeclaration>;

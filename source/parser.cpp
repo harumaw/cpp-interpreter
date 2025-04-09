@@ -40,10 +40,14 @@ declaration Parser::parse_declaration() {
     }
     else if (match_pattern(TokenType::STRUCT, TokenType::ID)) {
         return parse_struct_declaration();  
-    } 
-        else {
+    }
+   /* else if(match_pattern(TokenType::TYPE, TokenType::ID, TokenType::BRACE_LEFT)) {
+        return parse_array_declaration();
+    }*/
+
+    else {
             throw std::runtime_error("Declaration : Unexpected token " + tokens[offset].value);
-        }
+    }
     }
 
 
@@ -76,7 +80,6 @@ struct_declaration Parser::parse_struct_declaration() {
 }
 
 
-
 expression Parser::parse_member_access(std::shared_ptr<Expression> base) {
     extract_token(TokenType::DOT);  
     
@@ -85,6 +88,48 @@ expression Parser::parse_member_access(std::shared_ptr<Expression> base) {
 
     return std::make_shared<StructMemberAccessExpression>(base, member_name);
 }
+
+
+
+
+/*array_declaration Parser::parse_array_declaration() {
+    std::string type_token = extract_token(TokenType::TYPE);
+    std::string name_token = extract_token(TokenType::ID);
+    
+    extract_token(TokenType::INDEX_LEFT);
+    
+  
+    std::shared_ptr<Expression> size_expr = parse_expression();  
+    
+
+    extract_token(TokenType::INDEX_RIGHT);
+    
+    std::vector<std::shared_ptr<Declaration::InitDeclarator>> declaratorList;
+    
+    
+    if (match_token(TokenType::EQUAL)) {
+        extract_token(TokenType::BRACE_LEFT); 
+        
+
+        while (!check_token(TokenType::BRACE_RIGHT)) {
+            auto init_value = parse_expression();  
+            auto init_declarator = std::make_shared<Declaration::InitDeclarator>(name_token, init_value);
+            declaratorList.push_back(init_declarator);
+            
+            if (match_token(TokenType::COMMA)) {
+                continue;
+            } else {
+                break;
+            }
+        }
+        
+        extract_token(TokenType::BRACE_RIGHT); 
+    }
+    
+
+    return std::make_shared<ArrayDeclaration>(type_token, declaratorList, size_expr, std::vector<std::shared_ptr<Declaration::InitDeclarator>>()); 
+}
+*/
 
 func_declaration Parser::parse_function_declaration() {
     auto type = extract_token(TokenType::TYPE);

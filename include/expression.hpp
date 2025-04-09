@@ -138,6 +138,15 @@ struct StructMemberAccessExpression : public Expression {
 	void accept(Visitor&) override;
 };
 
+struct ArrayAccessExpression : public Expression {
+	std::shared_ptr<Expression> base;
+	std::shared_ptr<Expression> index;
+
+	ArrayAccessExpression(const std::shared_ptr<Expression>&, const std::shared_ptr<Expression>&);
+	void accept(Visitor&) override;
+};
+
+
 using expression = std::shared_ptr<Expression>;
 using binary_expression = std::shared_ptr<BinaryExpression>;
 using unary_expression = std::shared_ptr<UnaryExpression>;
