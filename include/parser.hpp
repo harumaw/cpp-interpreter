@@ -40,7 +40,7 @@ public:
 
 
 	expression parse_expression();
-	expression parse_member_access(std::shared_ptr<Expression>);
+	postfix_expression parse_member_access(std::shared_ptr<PostfixExpression> base);
 	binary_expression parse_binary_expression(int);
 	unary_expression parse_unary_expression();
 	postfix_expression parse_postfix_expression();

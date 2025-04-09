@@ -1,6 +1,16 @@
 1) 
 
-int arr[5] = {1, 2, 3, 4, 5};
+int arr[5] = {1, 2, 3, 4, 5}; - tozhe nado sdelatb
 int x = arr[2];
 
 2)
+
+struct A {
+    int x = 1;
+    int y = 2;
+};
+
+
+A a; - need sdelatb
+a.x;
+a.y;

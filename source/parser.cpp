@@ -41,18 +41,10 @@ declaration Parser::parse_declaration() {
     else if (match_pattern(TokenType::STRUCT, TokenType::ID)) {
         return parse_struct_declaration();  
     }
-   /* else if(match_pattern(TokenType::TYPE, TokenType::ID, TokenType::BRACE_LEFT)) {
-        return parse_array_declaration();
-    }*/
-
     else {
             throw std::runtime_error("Declaration : Unexpected token " + tokens[offset].value);
     }
-    }
-
-
-
-
+}
 
 
 struct_declaration Parser::parse_struct_declaration() {
@@ -80,58 +72,16 @@ struct_declaration Parser::parse_struct_declaration() {
 }
 
 
-expression Parser::parse_member_access(std::shared_ptr<Expression> base) {
+postfix_expression Parser::parse_member_access(std::shared_ptr<PostfixExpression> base) {
     extract_token(TokenType::DOT);  
-    
-    std::string member_name = tokens[offset].value;
-    extract_token(TokenType::ID);
-
+    std::string member_name = extract_token(TokenType::ID);
     return std::make_shared<StructMemberAccessExpression>(base, member_name);
 }
-
-
-
-
-/*array_declaration Parser::parse_array_declaration() {
-    std::string type_token = extract_token(TokenType::TYPE);
-    std::string name_token = extract_token(TokenType::ID);
-    
-    extract_token(TokenType::INDEX_LEFT);
-    
-  
-    std::shared_ptr<Expression> size_expr = parse_expression();  
-    
-
-    extract_token(TokenType::INDEX_RIGHT);
-    
-    std::vector<std::shared_ptr<Declaration::InitDeclarator>> declaratorList;
-    
-    
-    if (match_token(TokenType::EQUAL)) {
-        extract_token(TokenType::BRACE_LEFT); 
-        
-
-        while (!check_token(TokenType::BRACE_RIGHT)) {
-            auto init_value = parse_expression();  
-            auto init_declarator = std::make_shared<Declaration::InitDeclarator>(name_token, init_value);
-            declaratorList.push_back(init_declarator);
-            
-            if (match_token(TokenType::COMMA)) {
-                continue;
-            } else {
-                break;
-            }
-        }
-        
-        extract_token(TokenType::BRACE_RIGHT); 
-    }
-    
-
-    return std::make_shared<ArrayDeclaration>(type_token, declaratorList, size_expr, std::vector<std::shared_ptr<Declaration::InitDeclarator>>()); 
-}
-*/
-
 func_declaration Parser::parse_function_declaration() {
+    if(check_token(TokenType::ID)){
+        auto type = extract_token(TokenType::ID);
+    }    
+    
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_declarator();
     
@@ -378,8 +328,9 @@ unary_expression Parser::parse_unary_expression() {
 }
 
 postfix_expression Parser::parse_postfix_expression() {
-    std::shared_ptr<PostfixExpression> base = parse_primary_expression();
-
+    //std::cout << tokens[offset].value << std::endl;
+    postfix_expression base = parse_primary_expression();
+    //std::cout << tokens[offset].value << std::endl;
     while (true) {
         if (match_token(TokenType::INCREMENT)) {
             base = std::make_shared<PostfixIncrementExpression>(base);
@@ -391,8 +342,10 @@ postfix_expression Parser::parse_postfix_expression() {
         } else if (match_token(TokenType::INDEX_LEFT)) {
             std::shared_ptr<Expression> index = parse_subscript_expression();
             base = std::make_shared<SubscriptExpression>(base, index);
+        } else if (check_token(TokenType::DOT)) {
+            base = parse_member_access(base); 
         } else {
-            break; 
+            break;
         }
     }
 
@@ -441,7 +394,7 @@ parentsized_expression Parser::parse_parenthesized_expression() {
     auto expression = parse_expression();
     extract_token(TokenType::PARENTHESIS_RIGHT);
     return std::make_shared<ParenthesizedExpression>(expression);
-}///////////////////////////////////////////////////////////////
+}
 
 template<typename... Args>
 bool Parser::check_token(const Args&... expected) {
