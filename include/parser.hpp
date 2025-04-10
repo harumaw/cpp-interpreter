@@ -13,6 +13,8 @@ class Parser {
 public:
 	Parser(const std::vector<Token>&);
 
+	bool is_type_specifier();
+
 	std::shared_ptr<RootNode> parse();
 	std::shared_ptr<RootNode> parse_root();
 	declaration parse_declaration();
@@ -66,6 +68,8 @@ private:
 	template<typename... Args>
 	bool match_pattern(const Args&...);
 
+
+	Token peek_token(int lookahead);
 private:
 	static const std::unordered_map<std::string, int> operator_precedences;
 	static const std::unordered_set<std::string> unary_operators;

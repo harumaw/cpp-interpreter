@@ -15,19 +15,33 @@ Parser::Parser(
     ) : tokens(tokens), offset(0) {}
 
 
-    std::shared_ptr<RootNode> Parser::parse() {
-        std::vector<std::shared_ptr<ASTNode>> ast_nodes;
+std::shared_ptr<RootNode> Parser::parse() {
+    std::vector<std::shared_ptr<ASTNode>> ast_nodes;
     
-        while (!match_token(TokenType::END)) {
-            if (check_token(TokenType::TYPE) || check_token(TokenType::STRUCT)) {
-                ast_nodes.push_back(parse_declaration());
-            } else {
-                ast_nodes.push_back(parse_statement());
-            }
+    while (!match_token(TokenType::END)) {
+        if (is_type_specifier()) {
+            ast_nodes.push_back(parse_declaration());
+        } else {
+            ast_nodes.push_back(parse_statement());
         }
-    
-        return std::make_shared<RootNode>(ast_nodes);
     }
+    
+    return std::make_shared<RootNode>(ast_nodes);
+}
+
+
+bool Parser::is_type_specifier() {
+    if (check_token(TokenType::TYPE) || check_token(TokenType::STRUCT)) {
+        return true;
+    }
+    if (check_token(TokenType::ID)) {
+        if (peek_token(1).type == TokenType::ID) {
+            return true;
+            }
+    }
+    
+    return false;
+}
 
 
 
@@ -35,7 +49,7 @@ declaration Parser::parse_declaration() {
     if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
         return parse_function_declaration();
     }
-    else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID)) {
+    else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID) || match_pattern(TokenType::ID, TokenType::ID)) {
         return parse_var_declaration();
     }
     else if (match_pattern(TokenType::STRUCT, TokenType::ID)) {
@@ -78,10 +92,6 @@ postfix_expression Parser::parse_member_access(std::shared_ptr<PostfixExpression
     return std::make_shared<StructMemberAccessExpression>(base, member_name);
 }
 func_declaration Parser::parse_function_declaration() {
-    if(check_token(TokenType::ID)){
-        auto type = extract_token(TokenType::ID);
-    }    
-    
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_declarator();
     
@@ -123,8 +133,17 @@ parameter_declaration Parser::parse_parameter_declaration() {
 
     return std::make_shared<ParameterDeclaration>(type, declarator);
 }
+
+
 var_declaration Parser::parse_var_declaration() {
-    auto type = extract_token(TokenType::TYPE);
+    std::string type;
+
+    if (check_token(TokenType::ID)) {
+        type = extract_token(TokenType::ID);
+    } else {
+        type = extract_token(TokenType::TYPE);
+    }
+
     std::vector<std::shared_ptr<Declaration::InitDeclarator>> declarator_list;
 
     while (true) {
@@ -422,8 +441,15 @@ template<typename... Args>
 bool Parser::match_pattern(const Args&... expected) {
 	std::size_t i = offset;
 	return ((tokens[i++].type == expected) && ...);
-}
+} 
 
+Token Parser::peek_token(int lookahead) {
+    if (offset + lookahead < tokens.size()) {
+        return tokens[offset + lookahead];
+    } else {
+        return Token{TokenType::END, ""}; 
+    }
+}
 
 const std::unordered_map<std::string, int> Parser::operator_precedences = {
 	{"=", 0}, {"+=", 0}, {"-=", 0}, {"*=", 0}, {"/=", 0}, {"%=", 0}, {"**=", 0},
