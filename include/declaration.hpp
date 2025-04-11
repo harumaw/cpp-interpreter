@@ -90,7 +90,7 @@ struct ArrayDeclaration: public Declaration{
 
 
 
-using node = std::shared_ptr<RootNode>;
+using node = std::shared_ptr<TranslationUnit>;
 using declaration = std::shared_ptr<Declaration>;
 using func_declaration = std::shared_ptr<FuncDeclaration>;
 using parameter_declaration = std::shared_ptr<ParameterDeclaration>;

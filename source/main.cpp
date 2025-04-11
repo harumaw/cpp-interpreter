@@ -14,7 +14,7 @@ int main() {
         std::vector<Token> tokens = lexer.tokenize();
 
 
-        Lexer::print_tokens(tokens);
+    //Lexer::print_tokens(tokens);
 
         Parser parser(tokens);
         auto translation_unit = parser.parse();

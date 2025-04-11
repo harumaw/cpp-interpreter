@@ -35,9 +35,9 @@ struct Expression: public ASTNode {
 
 using DeclarationSeq = std::vector<std::shared_ptr<Declaration>>;
 
-struct RootNode : public ASTNode {
+struct TranslationUnit : public ASTNode {
     std::vector<std::shared_ptr<ASTNode>> declarations;
 
-    RootNode(const std::vector<std::shared_ptr<ASTNode>>& declarations);
+    TranslationUnit(const std::vector<std::shared_ptr<ASTNode>>& declarations);
     void accept(Visitor& visitor) override;
 };

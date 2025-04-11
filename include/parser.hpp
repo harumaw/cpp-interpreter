@@ -15,8 +15,8 @@ public:
 
 	bool is_type_specifier();
 
-	std::shared_ptr<RootNode> parse();
-	std::shared_ptr<RootNode> parse_root();
+	std::shared_ptr<TranslationUnit> parse();
+	std::shared_ptr<TranslationUnit> parse_root();
 	declaration parse_declaration();
 	func_declaration parse_function_declaration();
 	parameter_declaration parse_parameter_declaration();

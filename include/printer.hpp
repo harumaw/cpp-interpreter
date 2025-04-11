@@ -2,7 +2,7 @@
 
 class Printer : public Visitor {
 public:
-	void visit(RootNode&) override;
+	void visit(TranslationUnit&) override;
 	int indent_level = 0;
 
 	void indent();

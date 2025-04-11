@@ -48,13 +48,6 @@ struct FunctionCallExpression: public PostfixExpression {
 	void accept(Visitor&) override;
 };
 
-struct SubscriptExpression: public PostfixExpression {
-	std::shared_ptr<PostfixExpression> base;
-	std::shared_ptr<Expression> index;
-
-	SubscriptExpression(const std::shared_ptr<PostfixExpression>&, const std::shared_ptr<Expression>&);
-	void accept(Visitor&) override;
-};
 
 struct PostfixIncrementExpression: public PostfixExpression {
 	std::shared_ptr<PostfixExpression> base;
@@ -139,6 +132,13 @@ struct StructMemberAccessExpression : public PostfixExpression {
 	void accept(Visitor&) override;
 };
 
+struct SubscriptExpression: public PostfixExpression {
+	std::shared_ptr<PostfixExpression> base;
+	std::shared_ptr<Expression> index;
+
+	SubscriptExpression(const std::shared_ptr<PostfixExpression>&, const std::shared_ptr<Expression>&);
+	void accept(Visitor&) override;
+};
 
 
 using expression = std::shared_ptr<Expression>;

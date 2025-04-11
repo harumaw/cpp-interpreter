@@ -15,7 +15,7 @@ Parser::Parser(
     ) : tokens(tokens), offset(0) {}
 
 
-std::shared_ptr<RootNode> Parser::parse() {
+std::shared_ptr<TranslationUnit> Parser::parse() {
     std::vector<std::shared_ptr<ASTNode>> ast_nodes;
     
     while (!match_token(TokenType::END)) {
@@ -26,7 +26,7 @@ std::shared_ptr<RootNode> Parser::parse() {
         }
     }
     
-    return std::make_shared<RootNode>(ast_nodes);
+    return std::make_shared<TranslationUnit>(ast_nodes);
 }
 
 
@@ -138,7 +138,7 @@ array_declaration Parser::parse_array_declaration(){
     std::shared_ptr<Expression> size;
 
     if (match_token(TokenType::INDEX_LEFT)) {
-        std::cout << "Array declaration: " << declarator << std::endl;
+        //std::cout << "Array declaration: " << declarator << std::endl;
         size = parse_expression();
         extract_token(TokenType::INDEX_RIGHT);
     } else {
@@ -298,8 +298,6 @@ for_statement Parser::parse_for_statement() {
 
     return std::make_shared<ForStatement>(initialization, condition, increment, body);
 }
-
-
 
 
 

@@ -9,7 +9,7 @@ class Visitor {
 public:
 	virtual ~Visitor() = default;
 public:
-	virtual void visit(RootNode&) = 0;
+	virtual void visit(TranslationUnit&) = 0;
 public:
 	virtual void visit(Declaration::PtrDeclarator&) = 0;
 	virtual void visit(Declaration::SimpleDeclarator&) = 0;

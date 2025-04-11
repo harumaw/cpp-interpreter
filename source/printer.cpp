@@ -8,8 +8,8 @@ void Printer::indent() {
     }
 }
 
-void Printer::visit(RootNode& node) {
-    std::cout << "RootNode {\n";
+void Printer::visit(TranslationUnit& node) {
+    std::cout << "TranslationUnit {\n";
     ++indent_level;
     for (auto& decl : node.declarations) {
         decl->accept(*this);
@@ -249,14 +249,7 @@ void Printer::visit(PostfixDecrementExpression& node) {
     --indent_level;
 }
 
-void Printer::visit(SubscriptExpression& node) {
-    indent();
-    std::cout << "SubscriptExpression:\n";
-    ++indent_level;
-    node.base->accept(*this);
-    node.index->accept(*this);
-    --indent_level;
-}
+
 
 void Printer::visit(FunctionCallExpression& node) {
     indent();
@@ -329,19 +322,37 @@ void Printer::visit(StructMemberAccessExpression& node) {
 }
 
 void Printer::visit(ArrayDeclaration &node) {
-    std::cout << "ArrayDeclaration:\n";
     indent();
-   
+    std::cout << "ArrayDeclaration:\n";
+
+    ++indent_level;
+
     indent();
     std::cout << "Type: " << node.type << "\n";
-    
-    
+
     indent();
     std::cout << "Name: " << node.name << "\n";
-    
-   
+
     indent();
     std::cout << "Size: ";
-    node.size->accept(*this);  
-    std::cout << "\n";
+    node.size->accept(*this); 
+
+    --indent_level;
+}
+
+void Printer::visit(SubscriptExpression &node) {
+    indent();
+    std::cout << "SubscriptExpression:\n";
+    
+    ++indent_level;
+    
+    indent();
+    std::cout << "Base: ";
+    node.base->accept(*this); 
+    
+    indent();
+    std::cout << "Index: ";
+    node.index->accept(*this); 
+    
+    --indent_level;
     }

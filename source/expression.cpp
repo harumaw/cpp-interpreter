@@ -28,15 +28,6 @@ void FunctionCallExpression::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
 
-SubscriptExpression::SubscriptExpression(
-	const std::shared_ptr<PostfixExpression>& base,
-	const std::shared_ptr<Expression>& index
-	) : base(base), index(index) {}
-
-void SubscriptExpression::accept(Visitor& visitor) {
-	visitor.visit(*this);
-}
-
 PostfixIncrementExpression::PostfixIncrementExpression(
 	const std::shared_ptr<PostfixExpression>& base
 	) : base(base) {}
@@ -118,3 +109,13 @@ StructMemberAccessExpression::StructMemberAccessExpression
 void StructMemberAccessExpression::accept(Visitor& visitor){
         visitor.visit(*this);
     }
+	
+SubscriptExpression::SubscriptExpression(
+	const std::shared_ptr<PostfixExpression>& base,
+	const std::shared_ptr<Expression>& index
+) : base(base), index(index) {}
+
+void SubscriptExpression::accept(Visitor& visitor) {
+		visitor.visit(*this);
+	}
+	
