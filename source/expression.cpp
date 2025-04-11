@@ -118,12 +118,3 @@ StructMemberAccessExpression::StructMemberAccessExpression
 void StructMemberAccessExpression::accept(Visitor& visitor){
         visitor.visit(*this);
     }
-
-
-ArrayAccessExpression::ArrayAccessExpression(const std::shared_ptr<Expression>& base,
-		const std::shared_ptr<Expression>& index)
-: base(base), index(index) {}
-
-void ArrayAccessExpression::accept(Visitor &visitor) {
-	visitor.visit(*this);
-}

@@ -78,16 +78,13 @@ struct StructDeclaration: public Declaration {
 
 };
 
-struct ArrayDeclaration: public VarDeclaration{
+struct ArrayDeclaration: public Declaration{
+ 	std::string type;
+	std::string name;
 	std::shared_ptr<Expression> size;
-	std::vector<std::shared_ptr<Expression>> init_values;
+	ArrayDeclaration(const std::string& type, const std::string& name, const std::shared_ptr<Expression>& size);
 
-	ArrayDeclaration(const std::string &type,
-		const std::vector<std::shared_ptr<InitDeclarator>> &declaratorList,
-		const std::shared_ptr<Expression> &size,
-		const std::vector<std::shared_ptr<Expression>> &initValues = {});
-
-	void accept(Visitor &visitor) override;
+    void accept(Visitor &visitor) override;
 };
 
 

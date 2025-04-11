@@ -139,13 +139,6 @@ struct StructMemberAccessExpression : public PostfixExpression {
 	void accept(Visitor&) override;
 };
 
-struct ArrayAccessExpression : public Expression {
-	std::shared_ptr<Expression> base;
-	std::shared_ptr<Expression> index;
-
-	ArrayAccessExpression(const std::shared_ptr<Expression>&, const std::shared_ptr<Expression>&);
-	void accept(Visitor&) override;
-};
 
 
 using expression = std::shared_ptr<Expression>;

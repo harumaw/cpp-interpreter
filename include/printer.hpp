@@ -26,7 +26,7 @@ public:
 	void visit(BreakStatement&) override;
 	void visit(ContinueStatement&) override;
 	void visit(StructMemberAccessExpression&) override;
-	void visit(ArrayAccessExpression&) override;
+
 
 	void visit(BinaryOperation&) override;
 	void visit(PrefixExpression&) override;

@@ -49,6 +49,10 @@ declaration Parser::parse_declaration() {
     if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
         return parse_function_declaration();
     }
+    else if(match_pattern(TokenType::TYPE, TokenType::ID, TokenType::INDEX_LEFT)){
+        return parse_array_declaration();
+
+    }
     else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID) || match_pattern(TokenType::ID, TokenType::ID)) {
         return parse_var_declaration();
     }
@@ -91,6 +95,8 @@ postfix_expression Parser::parse_member_access(std::shared_ptr<PostfixExpression
     std::string member_name = extract_token(TokenType::ID);
     return std::make_shared<StructMemberAccessExpression>(base, member_name);
 }
+
+
 func_declaration Parser::parse_function_declaration() {
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_declarator();
@@ -125,8 +131,24 @@ func_declaration Parser::parse_function_declaration() {
     return std::make_shared<FuncDeclaration>(type, declarator, args, body);
 }
 
+
+array_declaration Parser::parse_array_declaration(){
+    auto type = extract_token(TokenType::TYPE);
+    auto declarator = extract_token(TokenType::ID);
+    std::shared_ptr<Expression> size;
+
+    if (match_token(TokenType::INDEX_LEFT)) {
+        std::cout << "Array declaration: " << declarator << std::endl;
+        size = parse_expression();
+        extract_token(TokenType::INDEX_RIGHT);
+    } else {
+        throw std::runtime_error("Array declaration: Missing array size");
+    }
+
+    extract_token(TokenType::SEMICOLON);
+    return std::make_shared<ArrayDeclaration>(type, declarator, size);
+}
 parameter_declaration Parser::parse_parameter_declaration() {
-    // dobavitb proverku na otsutstvie parametrov
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_init_declarator();
 

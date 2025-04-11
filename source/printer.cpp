@@ -329,37 +329,19 @@ void Printer::visit(StructMemberAccessExpression& node) {
 }
 
 void Printer::visit(ArrayDeclaration &node) {
+    std::cout << "ArrayDeclaration:\n";
     indent();
-    std::cout << "ArrayDeclaration: " << node.type << "\n";
-    ++indent_level;
+   
+    indent();
+    std::cout << "Type: " << node.type << "\n";
+    
+    
+    indent();
+    std::cout << "Name: " << node.name << "\n";
+    
+   
     indent();
     std::cout << "Size: ";
-    node.size->accept(*this);
+    node.size->accept(*this);  
     std::cout << "\n";
-    
-    if (!node.init_values.empty()) {
-        indent();
-        std::cout << "Initializer List:\n";
-        ++indent_level;
-        for (auto &expr : node.init_values) {
-            expr->accept(*this);
-        }
-        --indent_level;
     }
-    --indent_level;
-}
-
-void Printer::visit(ArrayAccessExpression &node) {
-    indent();
-    std::cout << "ArrayAccessExpression:\n";
-    ++indent_level;
-    indent();
-    std::cout << "Base: ";
-    node.base->accept(*this);
-    std::cout << "\n";
-    indent();
-    std::cout << "Index: ";
-    node.index->accept(*this);
-    std::cout << "\n";
-    --indent_level;
-}

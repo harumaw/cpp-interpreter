@@ -44,5 +44,4 @@ public:
 	virtual void visit(BoolLiteral&) = 0;
 	virtual void visit(IdentifierExpression&) = 0;
 	virtual void visit(ParenthesizedExpression&) = 0;
-	virtual void visit(ArrayAccessExpression&) = 0;
 };
