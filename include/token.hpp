@@ -11,7 +11,6 @@ enum class TokenType {
      
         TYPE,
     
-    
         PLUS,
         MINUS,
         MULTIPLY,

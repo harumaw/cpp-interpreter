@@ -8,16 +8,12 @@
 
 struct VarDeclaration;
 
-
-
-
-
-using StatementSeq = std::vector<std::shared_ptr<Statement>>;
+using statementseq= std::vector<std::shared_ptr<Statement>>;
 
 struct CompoundStatement: public Statement {
-	StatementSeq statements;
+	statementseq statements;
 
-	CompoundStatement(const StatementSeq&);
+	CompoundStatement(const statementseq&);
 	void accept(Visitor&) override;
 };
 

@@ -17,23 +17,20 @@ struct Statement: public ASTNode {
 };
 
 struct Declaration: public ASTNode {
+	virtual ~Declaration() = default;
+	virtual void accept(Visitor&) override = 0;
 
 	struct Declarator;
 	struct SimpleDeclarator;
 	struct PtrDeclarator;
-
 	struct InitDeclarator;
 
-	virtual ~Declaration() = default;
-	virtual void accept(Visitor&) override = 0;
 };
 
 struct Expression: public ASTNode {
 	virtual ~Expression() = default;
 	virtual void accept(Visitor&) override = 0;
 };
-
-using DeclarationSeq = std::vector<std::shared_ptr<Declaration>>;
 
 struct TranslationUnit : public ASTNode {
     std::vector<std::shared_ptr<ASTNode>> declarations;

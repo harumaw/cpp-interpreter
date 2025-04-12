@@ -158,13 +158,7 @@ parameter_declaration Parser::parse_parameter_declaration() {
 
 
 var_declaration Parser::parse_var_declaration() {
-    std::string type;
-
-    if (check_token(TokenType::ID)) {
-        type = extract_token(TokenType::ID);
-    } else {
-        type = extract_token(TokenType::TYPE);
-    }
+    auto type = extract_token(TokenType::TYPE);
 
     std::vector<std::shared_ptr<Declaration::InitDeclarator>> declarator_list;
 
@@ -345,7 +339,7 @@ expression_statement Parser::parse_expression_statement() {
 }
 
 
-std::shared_ptr<Expression> Parser::parse_expression() {
+expression Parser::parse_expression() {
     return parse_binary_expression(0);
 }
 
@@ -401,7 +395,6 @@ func_param Parser::parse_function_call_expression() {
     }
 
     extract_token(TokenType::PARENTHESIS_RIGHT);  
-
     return args; 
 }
 

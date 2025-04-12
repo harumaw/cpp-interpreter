@@ -14,7 +14,7 @@ public:
 	Parser(const std::vector<Token>&);
 
 	bool is_type_specifier();
-
+public:
 	std::shared_ptr<TranslationUnit> parse();
 	std::shared_ptr<TranslationUnit> parse_root();
 	declaration parse_declaration();
@@ -25,8 +25,7 @@ public:
 	array_declaration parse_array_declaration();
 	init_declarator parse_init_declarator();
 	declarator parse_declarator();
-
-
+public:
 	statement parse_statement();
 	compound_statement parse_compound_statement();
 	conditional_statement parse_conditional_statement();
@@ -39,8 +38,7 @@ public:
 	return_statement parse_return_statement();
 	declaration_statement parse_declaration_statement();
 	expression_statement parse_expression_statement();
-
-
+public:
 	expression parse_expression();
 	postfix_expression parse_member_access(std::shared_ptr<PostfixExpression> base);
 	binary_expression parse_binary_expression(int);

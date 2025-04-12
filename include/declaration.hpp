@@ -9,7 +9,7 @@
 struct CompoundStatement;
 
 
-struct Declaration::Declarator {
+struct Declaration:: Declarator {
 	std::string name;
 	Declarator(const std::string&);
 

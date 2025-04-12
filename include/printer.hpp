@@ -6,7 +6,7 @@ public:
 	int indent_level = 0;
 
 	void indent();
-
+public:
 	void visit(Declaration::PtrDeclarator&) override;
 	void visit(Declaration::SimpleDeclarator&) override;
 	void visit(Declaration::InitDeclarator&) override;
@@ -15,7 +15,7 @@ public:
 	void visit(FuncDeclaration&) override;
 	void visit(StructDeclaration&) override;
 	void visit(ArrayDeclaration&) override;
-
+public:
 	void visit(CompoundStatement&) override;
 	void visit(DeclarationStatement&) override;
 	void visit(ExpressionStatement&) override;
@@ -26,8 +26,7 @@ public:
 	void visit(BreakStatement&) override;
 	void visit(ContinueStatement&) override;
 	void visit(StructMemberAccessExpression&) override;
-
-
+public:
 	void visit(BinaryOperation&) override;
 	void visit(PrefixExpression&) override;
 	void visit(PostfixIncrementExpression&) override;
