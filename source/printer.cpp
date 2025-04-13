@@ -235,7 +235,7 @@ void Printer::visit(PrefixExpression& node) {
 
 void Printer::visit(PostfixIncrementExpression& node) {
     indent();
-    std::cout << "PostfixIncrementExpression:\n";
+    std::cout << "PostfixIncrementExpression: ++\n";
     ++indent_level;
     node.base->accept(*this);
     --indent_level;
@@ -243,12 +243,11 @@ void Printer::visit(PostfixIncrementExpression& node) {
 
 void Printer::visit(PostfixDecrementExpression& node) {
     indent();
-    std::cout << "PostfixDecrementExpression:\n";
+    std::cout << "PostfixDecrementExpression: --\n";
     ++indent_level;
     node.base->accept(*this);
     --indent_level;
 }
-
 
 
 void Printer::visit(FunctionCallExpression& node) {
@@ -356,3 +355,25 @@ void Printer::visit(SubscriptExpression &node) {
     
     --indent_level;
     }
+
+
+void Printer::visit(TernaryExpression &node) {
+    indent();
+    std::cout << "TernaryExpression:\n";
+
+    ++indent_level;
+    
+    indent();
+    std::cout << "Condition: ";
+    node.condition->accept(*this);
+
+    indent();
+    std::cout << "TrueExpr: ";
+    node.true_expr->accept(*this);
+
+    indent();
+    std::cout << "FalseExpr: ";
+    node.false_expr->accept(*this);
+
+    --indent_level;
+}

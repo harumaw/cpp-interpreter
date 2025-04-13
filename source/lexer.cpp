@@ -110,17 +110,18 @@ Token Lexer::extract_operator(const std::string& line) {
         }
     }
 
-    
-    std::string one_char_op(1, line[offset]);
-    auto it = operators.find(one_char_op);
-    if (it != operators.end()) {
-        offset++;  
-        return {it->second, one_char_op};  
+    if (offset < line.size()) {
+        std::string one_char_op(1, line[offset]);
+        auto it = operators.find(one_char_op);
+        if (it != operators.end()) {
+            offset++;  
+            return {it->second, one_char_op};  
+        }
     }
-
     offset++;  
     return {TokenType::END, ""};  
 }
+
 
 Token Lexer::extract_punctuator(const std::string& line) {
     for (const auto& punct : punctuators) {

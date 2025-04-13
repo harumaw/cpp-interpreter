@@ -40,4 +40,5 @@ public:
 	void visit(BoolLiteral&) override;
 	void visit(IdentifierExpression&) override;
 	void visit(ParenthesizedExpression&) override;
+	void visit(TernaryExpression&) override;
 };

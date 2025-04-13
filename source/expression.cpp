@@ -1,9 +1,9 @@
 #include "visitor.hpp"
 
 BinaryOperation::BinaryOperation(
-	const std::string& op, 
-	const std::shared_ptr<BinaryExpression>& lhs,
-	const std::shared_ptr<BinaryExpression>& rhs
+	std::string op, 
+	std::shared_ptr<Expression> lhs,
+	std::shared_ptr<Expression> rhs
 	) : op(op), lhs(lhs), rhs(rhs) {}
 
 void BinaryOperation::accept(Visitor& visitor) {
@@ -11,8 +11,8 @@ void BinaryOperation::accept(Visitor& visitor) {
 }
 
 PrefixExpression::PrefixExpression(
-	const std::string& op,
-	const std::shared_ptr<UnaryExpression>& base
+	std::string op,
+	std::shared_ptr<Expression> base
 	) : op(op), base(base) {}
 
 void PrefixExpression::accept(Visitor& visitor) {
@@ -20,7 +20,7 @@ void PrefixExpression::accept(Visitor& visitor) {
 }
 
 FunctionCallExpression::FunctionCallExpression(
-	const std::shared_ptr<PostfixExpression>& base,
+	std::shared_ptr<Expression> base,
 	const std::vector<std::shared_ptr<Expression>>& args
 	) : base(base), args(args) {}
 
@@ -29,7 +29,7 @@ void FunctionCallExpression::accept(Visitor& visitor) {
 }
 
 PostfixIncrementExpression::PostfixIncrementExpression(
-	const std::shared_ptr<PostfixExpression>& base
+	std::shared_ptr<Expression> base
 	) : base(base) {}
 
 void PostfixIncrementExpression::accept(Visitor& visitor) {
@@ -37,7 +37,7 @@ void PostfixIncrementExpression::accept(Visitor& visitor) {
 }
 
 PostfixDecrementExpression::PostfixDecrementExpression(
-	const std::shared_ptr<PostfixExpression>& base
+	std::shared_ptr<Expression> base
 	) : base(base) {}
 
 void PostfixDecrementExpression::accept(Visitor& visitor) {
@@ -93,7 +93,7 @@ void BoolLiteral::accept(Visitor& visitor) {
 }
 
 ParenthesizedExpression::ParenthesizedExpression(
-	const std::shared_ptr<Expression>& expression
+	std::shared_ptr<Expression> expression
 	) : expression(expression) {}
 
 void ParenthesizedExpression::accept(Visitor& visitor) {
@@ -103,7 +103,7 @@ void ParenthesizedExpression::accept(Visitor& visitor) {
 
 StructMemberAccessExpression::StructMemberAccessExpression
 (
-	const std::shared_ptr<Expression>& base, const std::string& member)
+	std::shared_ptr<Expression> base, const std::string& member)
         : base(base), member(member) {}
 
 void StructMemberAccessExpression::accept(Visitor& visitor){
@@ -111,11 +111,23 @@ void StructMemberAccessExpression::accept(Visitor& visitor){
     }
 	
 SubscriptExpression::SubscriptExpression(
-	const std::shared_ptr<PostfixExpression>& base,
-	const std::shared_ptr<Expression>& index
+	std::shared_ptr<Expression> base,
+	std::shared_ptr<Expression> index
 ) : base(base), index(index) {}
 
 void SubscriptExpression::accept(Visitor& visitor) {
 		visitor.visit(*this);
 	}
 	
+
+TernaryExpression::TernaryExpression(
+	std::shared_ptr<Expression> condition,
+	std::shared_ptr<Expression> true_expr,
+	std::shared_ptr<Expression> false_expr
+) : condition(condition) , true_expr(true_expr), false_expr(false_expr) {}
+
+void TernaryExpression::accept(Visitor& visitor){
+	visitor.visit(*this);
+}
+
+

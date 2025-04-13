@@ -11,13 +11,14 @@
 struct BinaryExpression: public Expression {
 	virtual ~BinaryExpression() = default;
 	virtual void accept(Visitor&) override = 0;
+
 };
 
 struct BinaryOperation: public BinaryExpression {
 	std::string op;
-	std::shared_ptr<BinaryExpression> lhs, rhs;
+	std::shared_ptr<Expression> lhs, rhs;
 
-	BinaryOperation(const std::string&, const std::shared_ptr<BinaryExpression>&, const std::shared_ptr<BinaryExpression>&);
+	BinaryOperation(std::string, std::shared_ptr<Expression>, std::shared_ptr<Expression>);
 	void accept(Visitor&) override;
 };
 
@@ -28,9 +29,9 @@ struct UnaryExpression: public BinaryExpression {
 
 struct PrefixExpression: public UnaryExpression {
 	std::string op;
-	std::shared_ptr<UnaryExpression> base;
+	std::shared_ptr<Expression> base;
 
-	PrefixExpression(const std::string&, const std::shared_ptr<UnaryExpression>&);
+	PrefixExpression(std::string, std::shared_ptr<Expression>);
 	void accept(Visitor&) override;
 };
 
@@ -41,25 +42,25 @@ struct PostfixExpression: public UnaryExpression {
 };
 
 struct FunctionCallExpression: public PostfixExpression {
-	std::shared_ptr<PostfixExpression> base;
+	std::shared_ptr<Expression> base;
 	std::vector<std::shared_ptr<Expression>> args;
 
-	FunctionCallExpression(const std::shared_ptr<PostfixExpression>&, const std::vector<std::shared_ptr<Expression>>&);
+	FunctionCallExpression(std::shared_ptr<Expression>, const std::vector<std::shared_ptr<Expression>>&);
 	void accept(Visitor&) override;
 };
 
 
 struct PostfixIncrementExpression: public PostfixExpression {
-	std::shared_ptr<PostfixExpression> base;
+	std::shared_ptr<Expression> base;
 
-	PostfixIncrementExpression(const std::shared_ptr<PostfixExpression>&);
+	PostfixIncrementExpression(std::shared_ptr<Expression>);
 	void accept(Visitor&) override;
 };
 
 struct PostfixDecrementExpression: public PostfixExpression {
-	std::shared_ptr<PostfixExpression> base;
+	std::shared_ptr<Expression> base;
 
-	PostfixDecrementExpression(const std::shared_ptr<PostfixExpression>&);
+	PostfixDecrementExpression(std::shared_ptr<Expression>);
 	void accept(Visitor&) override;
 };
 
@@ -119,7 +120,7 @@ struct BoolLiteral: public LiteralExpression {
 struct ParenthesizedExpression: public PrimaryExpression {
 	std::shared_ptr<Expression> expression;
 
-	ParenthesizedExpression(const std::shared_ptr<Expression>&);
+	ParenthesizedExpression(std::shared_ptr<Expression>);
 	void accept(Visitor&) override;
 };
 
@@ -127,21 +128,34 @@ struct StructMemberAccessExpression : public PostfixExpression {
 	std::shared_ptr<Expression> base;
 	std::string member;
 
-	StructMemberAccessExpression(const std::shared_ptr<Expression>&, const std::string&);
+	StructMemberAccessExpression(std::shared_ptr<Expression>, const std::string&);
 	
 	void accept(Visitor&) override;
 };
 
 struct SubscriptExpression: public PostfixExpression {
-	std::shared_ptr<PostfixExpression> base;
+	std::shared_ptr<Expression> base;
 	std::shared_ptr<Expression> index;
 
-	SubscriptExpression(const std::shared_ptr<PostfixExpression>&, const std::shared_ptr<Expression>&);
+	SubscriptExpression(std::shared_ptr<Expression>, std::shared_ptr<Expression>);
 	void accept(Visitor&) override;
 };
 
 
-using expression = std::shared_ptr<Expression>;
+
+struct TernaryExpression : public Expression{
+	std::shared_ptr<Expression> condition;
+	std::shared_ptr<Expression> true_expr;
+	std::shared_ptr<Expression> false_expr;
+
+
+	TernaryExpression(std::shared_ptr<Expression>, std::shared_ptr<Expression>, std::shared_ptr<Expression>);
+
+	void accept(Visitor&) override;
+};
+
+
+using expr_ptr = std::shared_ptr<Expression>;
 using binary_expression = std::shared_ptr<BinaryExpression>;
 using unary_expression = std::shared_ptr<UnaryExpression>;
 using postfix_expression = std::shared_ptr<PostfixExpression>;

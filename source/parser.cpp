@@ -90,13 +90,6 @@ struct_declaration Parser::parse_struct_declaration() {
 }
 
 
-postfix_expression Parser::parse_member_access(std::shared_ptr<PostfixExpression> base) {
-    extract_token(TokenType::DOT);  
-    std::string member_name = extract_token(TokenType::ID);
-    return std::make_shared<StructMemberAccessExpression>(base, member_name);
-}
-
-
 func_declaration Parser::parse_function_declaration() {
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_declarator();
@@ -198,6 +191,9 @@ declarator Parser::parse_declarator() {
         throw std::runtime_error("Declarator : Unexpected token " + tokens[offset].value);
     }
 }
+
+
+//block nazvatb
 statement Parser::parse_statement() {
     if (match_token(TokenType::BRACE_LEFT)) {
         return parse_compound_statement();
@@ -223,7 +219,7 @@ compound_statement Parser::parse_compound_statement() {
 
 conditional_statement Parser::parse_conditional_statement() {
     extract_token(TokenType::PARENTHESIS_LEFT); 
-    auto if_condition = parse_expression();    
+    auto if_condition = parse_expression(); 
     extract_token(TokenType::PARENTHESIS_RIGHT); 
     auto if_statement = parse_statement();    
     auto if_branch = std::make_pair(if_condition, if_statement);
@@ -255,8 +251,6 @@ while_statement Parser::parse_while_statement() {
 }
 
 for_statement Parser::parse_for_statement() {
-
-
     extract_token(TokenType::PARENTHESIS_LEFT); 
   
 
@@ -317,7 +311,7 @@ continue_statement Parser::parse_continue_statement() {
 }
 
 return_statement Parser::parse_return_statement() {
-    std::shared_ptr<Expression> expression = nullptr;
+    std::shared_ptr<Expression> expression;
     if (!check_token(TokenType::SEMICOLON)) {
         expression = parse_expression();
     }
@@ -338,95 +332,151 @@ expression_statement Parser::parse_expression_statement() {
     return std::make_shared<ExpressionStatement>(expression);
 }
 
-
-expression Parser::parse_expression() {
-    return parse_binary_expression(0);
+expr_ptr Parser::parse_expression(){
+    return parse_assignment();
 }
 
-binary_expression Parser::parse_binary_expression(int min_precedence) {
-    binary_expression lhs = parse_unary_expression();
-    for (auto op = tokens[offset].value; operator_precedences.contains(op) && operator_precedences.at(op) >= min_precedence; op = tokens[offset].value) {
-        ++offset;
-        lhs = std::make_shared<BinaryOperation>(op, lhs, parse_binary_expression(operator_precedences.at(op)));
+expr_ptr Parser::parse_assignment(){ // 1 ? x : y = 3 if(true) {x = 3} else { y = 3 }
+    auto left = parse_ternary_expression();
+    if (match_token(TokenType::ASSIGN, TokenType::PLUS_ASSIGN, TokenType::MINUS_ASSIGN, TokenType::MULTIPLY_ASSIGN, TokenType::DIVIDE_ASSIGN, TokenType::MODULO_ASSIGN)) {
+        auto op = tokens[offset - 1].value;
+        auto right = parse_assignment();
+        left = std::make_shared<BinaryOperation>(op, left, right);
     }
-    return lhs;
+    return left;
 }
 
-unary_expression Parser::parse_unary_expression() {
-    if (auto op = tokens[offset].value; unary_operators.contains(op)) {
-        ++offset;
-        return std::make_shared<PrefixExpression>(op, parse_unary_expression());
+
+
+expr_ptr Parser::parse_ternary_expression(){
+    auto condition = parse_compared_expression();
+    while (match_token(TokenType::QUESTION)) {
+        auto true_expr = parse_expression();
+        extract_token(TokenType::COLON);
+        auto false_expr = parse_expression();
+        condition = std::make_shared<TernaryExpression>(condition, true_expr, false_expr);
+    } 
+    return condition;
+}
+
+expr_ptr Parser::parse_compared_expression(){ // 4 < 20 < 2    EQUAL,
+    auto left = parse_sum_expression();
+    if(match_token(TokenType:: EQUAL, TokenType:: NOT_EQUAL, TokenType:: GREATER, TokenType:: LESS, TokenType:: GREATER_EQUAL, TokenType:: LESS_EQUAL)){
+        auto op = tokens[offset -1].value;
+        auto right = parse_compared_expression();
+        left = std::make_shared <BinaryOperation>(op, left, right);
+    }
+    return left;
+}
+
+expr_ptr Parser::parse_sum_expression(){ // 1+3+4
+    auto left = parse_mul_expression();
+    while(match_token(TokenType::PLUS, TokenType::MINUS)){
+        auto op = tokens[offset-1].value;
+        auto right = parse_sum_expression();
+        left = std::make_shared<BinaryOperation>(op, left, right);
+    }
+    return left;
+}
+
+
+expr_ptr Parser::parse_mul_expression(){
+    auto left = parse_unary_expression();
+    while(match_token(TokenType::MULTIPLY, TokenType::DIVIDE)){
+        auto op = tokens[offset-1].value;
+        auto right = parse_mul_expression();
+        left = std::make_shared<BinaryOperation>(op, left, right);
+    }
+    return left;
+}
+
+expr_ptr Parser::parse_unary_expression(){ // a 2 ls
+    if(match_token(TokenType::INCREMENT, TokenType:: DECREMENT)){
+        auto op = tokens[offset-1].value;
+        auto base = parse_postfix_expression();
+        return std::make_shared<PrefixExpression>(op, base);
     }
     return parse_postfix_expression();
 }
 
-postfix_expression Parser::parse_postfix_expression() {
-    //std::cout << tokens[offset].value << std::endl;
-    postfix_expression base = parse_primary_expression();
-    //std::cout << tokens[offset].value << std::endl;
-    while (true) {
-        if (match_token(TokenType::INCREMENT)) {
-            base = std::make_shared<PostfixIncrementExpression>(base);
-        } else if (match_token(TokenType::DECREMENT)) {
-            base = std::make_shared<PostfixDecrementExpression>(base);
-        } else if (match_token(TokenType::PARENTHESIS_LEFT)) {
-            std::vector<std::shared_ptr<Expression>> args = parse_function_call_expression();
-            base = std::make_shared<FunctionCallExpression>(base, args);
-        } else if (match_token(TokenType::INDEX_LEFT)) {
-            std::shared_ptr<Expression> index = parse_subscript_expression();
-            base = std::make_shared<SubscriptExpression>(base, index);
-        } else if (check_token(TokenType::DOT)) {
-            base = parse_member_access(base); 
-        } else {
-            break;
+expr_ptr Parser::parse_postfix_expression(){ // a++, a.x, a(), a[][]
+    auto left = parse_base();
+    
+    while(check_token(TokenType::INCREMENT, TokenType::DECREMENT, TokenType::INDEX_LEFT, TokenType::PARENTHESIS_LEFT, TokenType::DOT)){
+        if(match_token(TokenType::INCREMENT)){
+            left =  std::make_shared<PostfixIncrementExpression>(left);
+        }
+        if(match_token(TokenType::DECREMENT)){
+            left = std::make_shared<PostfixDecrementExpression>(left);
+        }
+        if(match_token(TokenType::INDEX_LEFT)){
+            auto arg = parse_expression();
+            extract_token(TokenType::INDEX_RIGHT);
+            left = std::make_shared<SubscriptExpression>(left, arg);
+        }
+        if(match_token(TokenType::PARENTHESIS_LEFT)){
+            std::vector<std::shared_ptr<Expression>> args;
+            
+            while(!check_token(TokenType::PARENTHESIS_RIGHT)){
+                auto arg = parse_expression();
+                args.push_back(arg);
+                if(match_token(TokenType::COMMA)){
+                    continue;
+                }
+                else {
+                    std::runtime_error("Except comma");
+                }
+
+            }
+            if(!match_token(TokenType::PARENTHESIS_RIGHT)){
+                std::runtime_error("Except parenthesis right");
+            }
+            left = std::make_shared<FunctionCallExpression>(left, args);
+        }
+        if(match_token(TokenType::DOT)){
+            auto member = extract_token(TokenType::ID);
+            left = std::make_shared<StructMemberAccessExpression>(left, member);
         }
     }
-
-    return base;
+    return left;
 }
 
-func_param Parser::parse_function_call_expression() {
-    std::vector<std::shared_ptr<Expression>> args;
 
-    if (!match_token(TokenType::PARENTHESIS_RIGHT)) {
-        do {
-            args.push_back(parse_expression());  
-        } while (match_token(TokenType::COMMA));  
-    }
-
-    extract_token(TokenType::PARENTHESIS_RIGHT);  
-    return args; 
-}
-
-std::shared_ptr<Expression> Parser::parse_subscript_expression() {
-    auto index = parse_expression();
-    extract_token(TokenType::INDEX_RIGHT);
-    return index;
-}
-
-primary_expression Parser::parse_primary_expression() {
-    if (check_token(TokenType::LITERAL_NUM)) {
-        return std::make_shared<IntLiteral>(extract_token(TokenType::LITERAL_NUM));
-    } else if (check_token(TokenType::LITERAL_CHAR)) {
+expr_ptr Parser::parse_base(){
+    if(check_token(TokenType::LITERAL_CHAR)){
         return std::make_shared<CharLiteral>(extract_token(TokenType::LITERAL_CHAR));
-    } else if (check_token(TokenType::LITERAL_STRING)) {
-        return std::make_shared<StringLiteral>(extract_token(TokenType::LITERAL_STRING));
-    } else if (check_token(TokenType::TRUE, TokenType::FALSE)) {
-        return std::make_shared<BoolLiteral>(extract_token(TokenType::TRUE, TokenType::FALSE));
-    } else if (check_token(TokenType::ID)) {
-        return std::make_shared<IdentifierExpression>(extract_token(TokenType::ID));
-    } else if (match_token(TokenType::PARENTHESIS_LEFT)) {
-        return parse_parenthesized_expression();
-    } else {
-        throw std::runtime_error("Unexpected token " + tokens[offset].value);
     }
+    else if (check_token(TokenType::ID)){
+        return std::make_shared<IdentifierExpression>(extract_token(TokenType::ID));
+    }
+    else if(check_token(TokenType::LITERAL_NUM)){
+        std::string value = extract_token(TokenType::LITERAL_NUM);
+        if (value.find('.') != std::string::npos) {
+            return std::make_shared<FloatLiteral>(value);
+        } else {
+            return std::make_shared<IntLiteral>(value);
+        }
+    }
+    else if(check_token(TokenType::TRUE, TokenType::FALSE)){
+        auto val = tokens[offset++].value;
+        
+        return std::make_shared<BoolLiteral>(val);
+    }
+    else if(check_token(TokenType::LITERAL_STRING)){
+        return std::make_shared<StringLiteral>(extract_token(TokenType::LITERAL_STRING));
+    }
+
+    throw std::runtime_error("parse base error");
 }
 
-parentsized_expression Parser::parse_parenthesized_expression() {
-    auto expression = parse_expression();
-    extract_token(TokenType::PARENTHESIS_RIGHT);
-    return std::make_shared<ParenthesizedExpression>(expression);
-}
+
+
+
+
+
+
+
+
 
 template<typename... Args>
 bool Parser::check_token(const Args&... expected) {
@@ -474,6 +524,27 @@ const std::unordered_map<std::string, int> Parser::operator_precedences = {
 	{"*", 6}, {"/", 6}, {"%", 6},
 	{"^", 7}
 };
+
+// dobavit ,
+// (2 + (3 * 2)) - -1
+// parse_unary - 2, -2, (int)2, ++2++, 2++
+// base, prefix, prefix, postfix < prefix, postfix 
+
+
+/* parse_expression
+
+    parse_assignment - dobavit
+    /parse_ternary
+    /parse_compared - delitsya na svoi podtipy
+    1 -/parse_sum
+    /parse_mul
+    /parse_pow
+    /parse_unary
+    /parse_postfix
+    /parse_base
+
+*/
+
 
 const std::unordered_set<std::string> Parser::unary_operators = {
 	"+", "-", "&", "*", "!", "++", "--"

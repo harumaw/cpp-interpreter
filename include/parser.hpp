@@ -10,13 +10,21 @@
 #include "expression.hpp"
 
 class Parser {
+private:
+	
+	std::vector<Token> tokens;
+	std::size_t offset;
+
+	static const std::unordered_map<std::string, int> operator_precedences;
+	static const std::unordered_set<std::string> unary_operators;
+
 public:
 	Parser(const std::vector<Token>&);
 
 	bool is_type_specifier();
 public:
 	std::shared_ptr<TranslationUnit> parse();
-	std::shared_ptr<TranslationUnit> parse_root();
+
 	declaration parse_declaration();
 	func_declaration parse_function_declaration();
 	parameter_declaration parse_parameter_declaration();
@@ -39,20 +47,58 @@ public:
 	declaration_statement parse_declaration_statement();
 	expression_statement parse_expression_statement();
 public:
+	expr_ptr parse_expression();
+	expr_ptr parse_assignment();
+	expr_ptr parse_ternary_expression();
+	expr_ptr parse_compared_expression();
+
+	expr_ptr parse_sum_expression();
+	expr_ptr parse_mul_expression();	
+	expr_ptr parse_unary_expression();
+	expr_ptr parse_postfix_expression();
+	// v parse postfix
+	//expr_ptr parse_access_expression();
+	//expr_ptr parse_subscript_expression(expr_ptr base);
+	//expr_ptr parse_call_expression(expr_ptr base);
+	//expr_ptr parse_increment_expression(expr_ptr base);
+	//
+
+	
+	expr_ptr parse_base();
+/*
 	expression parse_expression();
-	postfix_expression parse_member_access(std::shared_ptr<PostfixExpression> base);
-	binary_expression parse_binary_expression(int);
-	unary_expression parse_unary_expression();
-	postfix_expression parse_postfix_expression();
-	func_param parse_function_call_expression();
-	expression parse_subscript_expression();
-	primary_expression parse_primary_expression();
-	parentsized_expression parse_parenthesized_expression();
+	assignment_expression parse_assignment();
+	ternary_expression parse_ternary();
+	conditional_expression parse_conditional();
+	arithmetic_parse parse_arithmetic_expression(int);
+	//parse sum, mul, add...
+	parse_base();
+	a+(b*c)+c;
 
-private:
-	std::vector<Token> tokens;
-	std::size_t offset;
+	a + (b*c) + c
 
+	++a; - unary
+	a++ - postfix;
+	base->parse_base()-> parse_postfix() -> parse_unary()
+
+
+*/
+
+
+/*parse_expression
+
+    parse_assignment - dobavit
+    /parse_ternary
+    /parse_compared - delitsya na svoi podtipy
+    1 -/parse_sum
+    /parse_mul
+    /parse_pow
+    /parse_unary
+    /parse_postfix
+    /parse_base
+
+
+*/
 private:
 	template<typename... Args>
 	bool check_token(const Args&...);
@@ -68,7 +114,5 @@ private:
 
 
 	Token peek_token(int lookahead);
-private:
-	static const std::unordered_map<std::string, int> operator_precedences;
-	static const std::unordered_set<std::string> unary_operators;
+
 };
