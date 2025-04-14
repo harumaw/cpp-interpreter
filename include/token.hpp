@@ -79,6 +79,8 @@ enum class TokenType {
         FOR,
         WHILE,
         STRUCT,
+        SIZEOF,
+        STATICASSERT,
         BREAK,
         CONTINUE,
         CONST,

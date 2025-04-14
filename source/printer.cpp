@@ -377,3 +377,23 @@ void Printer::visit(TernaryExpression &node) {
 
     --indent_level;
 }
+
+void Printer::visit(SizeOfExpression& node) {
+    indent();
+    std::cout << "SizeOfExpression:\n";
+    
+    ++indent_level;
+    
+    if (node.is_type) {
+        indent();
+        std::cout << "Type: " << node.type_name << "\n";
+    } else {
+        indent();
+        std::cout << "Expression:\n";
+        ++indent_level;
+        node.expression->accept(*this);
+        --indent_level;
+    }
+
+    --indent_level;
+}

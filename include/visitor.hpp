@@ -45,4 +45,5 @@ public:
 	virtual void visit(IdentifierExpression&) = 0;
 	virtual void visit(ParenthesizedExpression&) = 0;
 	virtual void visit(TernaryExpression&) = 0;
+	virtual void visit(SizeOfExpression&) = 0;
 };

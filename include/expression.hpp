@@ -22,7 +22,7 @@ struct BinaryOperation: public BinaryExpression {
 	void accept(Visitor&) override;
 };
 
-struct UnaryExpression: public BinaryExpression {
+struct UnaryExpression: public Expression {
 	virtual ~UnaryExpression() = default;
 	virtual void accept(Visitor&) override = 0;
 };
@@ -141,8 +141,6 @@ struct SubscriptExpression: public PostfixExpression {
 	void accept(Visitor&) override;
 };
 
-
-
 struct TernaryExpression : public Expression{
 	std::shared_ptr<Expression> condition;
 	std::shared_ptr<Expression> true_expr;
@@ -152,6 +150,26 @@ struct TernaryExpression : public Expression{
 	TernaryExpression(std::shared_ptr<Expression>, std::shared_ptr<Expression>, std::shared_ptr<Expression>);
 
 	void accept(Visitor&) override;
+};
+
+
+struct SizeOfExpression : public PostfixExpression{
+	bool is_type;
+	std::string type_name;
+	std::shared_ptr<Expression> expression;
+
+	SizeOfExpression(const std::string&);
+	SizeOfExpression(std::shared_ptr<Expression>);
+	
+	
+	
+	
+	
+	void accept(Visitor& visitor) override;
+    
+
+
+
 };
 
 

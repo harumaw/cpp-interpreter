@@ -130,4 +130,15 @@ void TernaryExpression::accept(Visitor& visitor){
 	visitor.visit(*this);
 }
 
+SizeOfExpression::SizeOfExpression(
+	const std::string& type_name
+) : is_type(true), type_name(type_name), expression(nullptr) {}
+
+SizeOfExpression::SizeOfExpression(
+	std::shared_ptr<Expression> expression
+) : is_type(false), type_name(""), expression(expression) {}
+
+void SizeOfExpression::accept(Visitor& visitor){
+	visitor.visit(*this);
+}
 

@@ -227,6 +227,8 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TokenType::ELSE: return "ELSE";
         case TokenType::FOR: return "FOR";
         case TokenType::WHILE: return "WHILE";
+        case TokenType::SIZEOF: return "SIZEOF";
+        case TokenType::STATICASSERT: return "static_assert";
         case TokenType::STRUCT: return "STRUCT";
         case TokenType::BREAK: return "BREAK";
         case TokenType::CONTINUE: return "CONTINUE";
@@ -311,7 +313,10 @@ std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"do", TokenType::DO},
     {"false", TokenType::FALSE},
     {"true", TokenType::TRUE},
-    {"return", TokenType::RETURN}
+    {"return", TokenType::RETURN},
+    {"sizeof", TokenType::SIZEOF},
+    {"static_assert", TokenType::STATICASSERT}
+
 };
 
 
