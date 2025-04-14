@@ -47,15 +47,15 @@ public:
 	declaration_statement parse_declaration_statement();
 	expression_statement parse_expression_statement();
 public:
-	expr_ptr parse_expression();
-	expr_ptr parse_assignment();
-	expr_ptr parse_ternary_expression();
-	expr_ptr parse_compared_expression();
+	expression parse_expression();
+	expression parse_assignment();
+	expression parse_ternary_expression();
+	expression parse_compared_expression();
 
-	expr_ptr parse_sum_expression();
-	expr_ptr parse_mul_expression();	
-	expr_ptr parse_unary_expression();
-	expr_ptr parse_postfix_expression();
+	expression parse_sum_expression();
+	expression parse_mul_expression();	
+	expression parse_unary_expression();
+	expression parse_postfix_expression();
 	// v parse postfix
 	//expr_ptr parse_access_expression();
 	//expr_ptr parse_subscript_expression(expr_ptr base);
@@ -64,7 +64,7 @@ public:
 	//
 
 	
-	expr_ptr parse_base();
+	expression parse_base();
 /*
 	expression parse_expression();
 	assignment_expression parse_assignment();

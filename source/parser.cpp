@@ -332,11 +332,11 @@ expression_statement Parser::parse_expression_statement() {
     return std::make_shared<ExpressionStatement>(expression);
 }
 
-expr_ptr Parser::parse_expression(){
+expression Parser::parse_expression(){
     return parse_assignment();
 }
 
-expr_ptr Parser::parse_assignment(){ // 1 ? x : y = 3 if(true) {x = 3} else { y = 3 }
+expression Parser::parse_assignment(){ 
     auto left = parse_ternary_expression();
     if (match_token(TokenType::ASSIGN, TokenType::PLUS_ASSIGN, TokenType::MINUS_ASSIGN, TokenType::MULTIPLY_ASSIGN, TokenType::DIVIDE_ASSIGN, TokenType::MODULO_ASSIGN)) {
         auto op = tokens[offset - 1].value;
@@ -348,7 +348,7 @@ expr_ptr Parser::parse_assignment(){ // 1 ? x : y = 3 if(true) {x = 3} else { y 
 
 
 
-expr_ptr Parser::parse_ternary_expression(){
+expression Parser::parse_ternary_expression(){ // int x = 5; int y = (x > 0) ? 10 : 20;
     auto condition = parse_compared_expression();
     while (match_token(TokenType::QUESTION)) {
         auto true_expr = parse_expression();
@@ -359,7 +359,7 @@ expr_ptr Parser::parse_ternary_expression(){
     return condition;
 }
 
-expr_ptr Parser::parse_compared_expression(){ // 4 < 20 < 2    EQUAL,
+expression Parser::parse_compared_expression(){ // 4 < 20 < 2    EQUAL,
     auto left = parse_sum_expression();
     if(match_token(TokenType:: EQUAL, TokenType:: NOT_EQUAL, TokenType:: GREATER, TokenType:: LESS, TokenType:: GREATER_EQUAL, TokenType:: LESS_EQUAL)){
         auto op = tokens[offset -1].value;
@@ -369,7 +369,7 @@ expr_ptr Parser::parse_compared_expression(){ // 4 < 20 < 2    EQUAL,
     return left;
 }
 
-expr_ptr Parser::parse_sum_expression(){ // 1+3+4
+expression Parser::parse_sum_expression(){ // 1+3+4
     auto left = parse_mul_expression();
     while(match_token(TokenType::PLUS, TokenType::MINUS)){
         auto op = tokens[offset-1].value;
@@ -380,7 +380,7 @@ expr_ptr Parser::parse_sum_expression(){ // 1+3+4
 }
 
 
-expr_ptr Parser::parse_mul_expression(){
+expression Parser::parse_mul_expression(){
     auto left = parse_unary_expression();
     while(match_token(TokenType::MULTIPLY, TokenType::DIVIDE)){
         auto op = tokens[offset-1].value;
@@ -390,7 +390,7 @@ expr_ptr Parser::parse_mul_expression(){
     return left;
 }
 
-expr_ptr Parser::parse_unary_expression(){ // a 2 ls
+expression Parser::parse_unary_expression(){ // a 2 ls
     if(match_token(TokenType::INCREMENT, TokenType:: DECREMENT)){
         auto op = tokens[offset-1].value;
         auto base = parse_postfix_expression();
@@ -399,7 +399,7 @@ expr_ptr Parser::parse_unary_expression(){ // a 2 ls
     return parse_postfix_expression();
 }
 
-expr_ptr Parser::parse_postfix_expression() {
+expression Parser::parse_postfix_expression() {
 
     if (match_token(TokenType::SIZEOF)) {
         if (match_token(TokenType::PARENTHESIS_LEFT)) {
@@ -460,7 +460,7 @@ expr_ptr Parser::parse_postfix_expression() {
 
 
 
-expr_ptr Parser::parse_base(){
+expression Parser::parse_base(){
     if(check_token(TokenType::LITERAL_CHAR)){
         return std::make_shared<CharLiteral>(extract_token(TokenType::LITERAL_CHAR));
     }

@@ -173,7 +173,7 @@ struct SizeOfExpression : public PostfixExpression{
 };
 
 
-using expr_ptr = std::shared_ptr<Expression>;
+using expression = std::shared_ptr<Expression>;
 using binary_expression = std::shared_ptr<BinaryExpression>;
 using unary_expression = std::shared_ptr<UnaryExpression>;
 using postfix_expression = std::shared_ptr<PostfixExpression>;
