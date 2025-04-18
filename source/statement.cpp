@@ -25,7 +25,8 @@ WhileStatement::WhileStatement(
 void WhileStatement::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
-ForStatement::ForStatement(std::shared_ptr<ASTNode> initialization,
+ForStatement::ForStatement(
+	std::shared_ptr<ASTNode> initialization,
 	std::shared_ptr<Expression> condition,
 	std::shared_ptr<Expression> increment,
 	std::shared_ptr<Statement> body

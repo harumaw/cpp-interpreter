@@ -166,9 +166,6 @@ struct SizeOfExpression : public PostfixExpression{
 	
 	
 	void accept(Visitor& visitor) override;
-    
-
-
 
 };
 

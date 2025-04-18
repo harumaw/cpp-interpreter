@@ -4,12 +4,6 @@
 
 #include "parser.hpp"
 
-#include <string>
-#include <vector>
-#include <memory> 
-
-#include "parser.hpp"
-
 Parser::Parser(
     const std::vector<Token>& tokens
     ) : tokens(tokens), offset(0) {}
@@ -39,7 +33,8 @@ bool Parser::is_type_specifier() {
             return true;
             }
     }
-    
+    // int int; 
+    // A a; - tozhe na etape parsera(таблицу символов реализовать)
     return false;
 }
 
@@ -79,12 +74,11 @@ struct_declaration Parser::parse_struct_declaration() {
     
     while (!check_token(TokenType::BRACE_RIGHT)) {
         auto field = parse_var_declaration();
-        members.push_back(std::dynamic_pointer_cast<VarDeclaration>(field));
+        members.push_back(field); // ispravit
     }
     
     extract_token(TokenType::BRACE_RIGHT);  
-    extract_token(TokenType::SEMICOLON);
-    
+    extract_token(TokenType::SEMICOLON); // bespolezen
  
     return std::make_shared<StructDeclaration>(struct_name, members);
 }
@@ -125,7 +119,7 @@ func_declaration Parser::parse_function_declaration() {
 }
 
 
-array_declaration Parser::parse_array_declaration(){
+array_declaration Parser::parse_array_declaration(){ // peredelatb chast var declaration
     auto type = extract_token(TokenType::TYPE);
     auto declarator = extract_token(TokenType::ID);
     std::shared_ptr<Expression> size;
@@ -209,10 +203,13 @@ statement Parser::parse_statement() {
         return parse_expression_statement();
     }
 }
-compound_statement Parser::parse_compound_statement() {
+compound_statement Parser::parse_compound_statement() { 
     std::vector<std::shared_ptr<Statement>> statements;
     while (!match_token(TokenType::BRACE_RIGHT)) {
         statements.push_back(parse_statement());
+        if(offset >= tokens.size()){
+            throw std::runtime_error("missing }");
+        }
     }
     return std::make_shared<CompoundStatement>(statements);
 }
@@ -232,7 +229,7 @@ conditional_statement Parser::parse_conditional_statement() {
     return std::make_shared<ConditionalStatement>(if_branch, else_branch);
 }
 
-loop_statement Parser::parse_loop_statement() {
+loop_statement Parser::parse_loop_statement() { //do-while
     if (match_token(TokenType::WHILE)) {
         return parse_while_statement();
     } else if (match_token(TokenType::FOR)) {
@@ -279,7 +276,7 @@ for_statement Parser::parse_for_statement() {
     }
     extract_token(TokenType::PARENTHESIS_RIGHT); 
 
-    extract_token(TokenType::BRACE_LEFT);
+    extract_token(TokenType::BRACE_LEFT); // peresmotretb peredelatb chtobi v statement bilo
     auto body = parse_statement();  
 
     extract_token(TokenType::BRACE_RIGHT);
@@ -310,7 +307,7 @@ continue_statement Parser::parse_continue_statement() {
     return std::make_shared<ContinueStatement>();
 }
 
-return_statement Parser::parse_return_statement() {
+return_statement Parser::parse_return_statement() { 
     std::shared_ptr<Expression> expression;
     if (!check_token(TokenType::SEMICOLON)) {
         expression = parse_expression();
@@ -326,18 +323,29 @@ declaration_statement Parser::parse_declaration_statement() {
     return std::make_shared<DeclarationStatement>(declaration);
 }
 
-expression_statement Parser::parse_expression_statement() {
+expression_statement Parser::parse_expression_statement() { // mozhet bit nullptr
     auto expression = parse_expression();
     extract_token(TokenType::SEMICOLON);
     return std::make_shared<ExpressionStatement>(expression);
 }
-
+//comma dobavit, logical
 expression Parser::parse_expression(){
     return parse_assignment();
 }
 
+expression Parser::parse_comma_expression(){
+    auto left = parse_assignment();
+    while(match_token(TokenType::COMMA)){
+        auto op = tokens[offset - 1].value;
+        auto right = parse_assignment();
+        left = std::make_shared<BinaryOperation>(op, left, right);
+    } // while dlya levoy if rigt
+    return left;
+}
+
+
 expression Parser::parse_assignment(){ 
-    auto left = parse_ternary_expression();
+    auto left = parse_ternary_expression(); //logical or
     if (match_token(TokenType::ASSIGN, TokenType::PLUS_ASSIGN, TokenType::MINUS_ASSIGN, TokenType::MULTIPLY_ASSIGN, TokenType::DIVIDE_ASSIGN, TokenType::MODULO_ASSIGN)) {
         auto op = tokens[offset - 1].value;
         auto right = parse_assignment();
@@ -346,10 +354,8 @@ expression Parser::parse_assignment(){
     return left;
 }
 
-
-
 expression Parser::parse_ternary_expression(){ // int x = 5; int y = (x > 0) ? 10 : 20;
-    auto condition = parse_compared_expression();
+    auto condition = parse_logical_or_expression();
     while (match_token(TokenType::QUESTION)) {
         auto true_expr = parse_expression();
         extract_token(TokenType::COLON);
@@ -358,6 +364,39 @@ expression Parser::parse_ternary_expression(){ // int x = 5; int y = (x > 0) ? 1
     } 
     return condition;
 }
+
+expression Parser::parse_logical_or_expression(){
+    auto left = parse_logical_and_expression();
+    if(match_token(TokenType::OR)){
+        auto op = tokens[offset -1].value;
+        auto right = parse_logical_or_expression();
+        left = std::make_shared<BinaryOperation>(op, left, right);
+    }
+    return left;
+}
+
+expression Parser::parse_logical_and_expression(){
+    auto left = parse_equality_expression();
+    if(match_token(TokenType::AND)){
+        auto op = tokens[offset -1].value;
+        auto right = parse_logical_and_expression();
+        left = std::make_shared<BinaryOperation>(op, left, right);
+    }
+    return left;
+}
+
+expression Parser::parse_equality_expression(){
+    auto left = parse_compared_expression();
+    while(match_token(TokenType::EQUAL, TokenType::NOT_EQUAL)){
+        auto op = tokens[offset -1].value;
+        auto right = parse_compared_expression();
+        left = std::make_shared<BinaryOperation>(op, left, right);
+    }
+    return left;
+    
+}
+
+
 
 expression Parser::parse_compared_expression(){ // 4 < 20 < 2    EQUAL,
     auto left = parse_sum_expression();
@@ -369,20 +408,10 @@ expression Parser::parse_compared_expression(){ // 4 < 20 < 2    EQUAL,
     return left;
 }
 
+
 expression Parser::parse_sum_expression(){ // 1+3+4
     auto left = parse_mul_expression();
     while(match_token(TokenType::PLUS, TokenType::MINUS)){
-        auto op = tokens[offset-1].value;
-        auto right = parse_sum_expression();
-        left = std::make_shared<BinaryOperation>(op, left, right);
-    }
-    return left;
-}
-
-
-expression Parser::parse_mul_expression(){
-    auto left = parse_unary_expression();
-    while(match_token(TokenType::MULTIPLY, TokenType::DIVIDE)){
         auto op = tokens[offset-1].value;
         auto right = parse_mul_expression();
         left = std::make_shared<BinaryOperation>(op, left, right);
@@ -390,7 +419,28 @@ expression Parser::parse_mul_expression(){
     return left;
 }
 
-expression Parser::parse_unary_expression(){ // a 2 ls
+
+expression Parser::parse_mul_expression(){
+    auto left = parse_pow_expression();
+    while(match_token(TokenType::MULTIPLY, TokenType::DIVIDE)){
+        auto op = tokens[offset-1].value;
+        auto right = parse_pow_expression();
+        left = std::make_shared<BinaryOperation>(op, left, right);
+    }
+    return left;
+}
+
+expression Parser::parse_pow_expression(){
+    auto left = parse_unary_expression();
+    if(match_token(TokenType::POWER)){
+        auto op = tokens[offset -1].value;
+        auto right = parse_pow_expression();
+        left = std::make_shared<BinaryOperation>(op, left, right);
+    }
+    return left;
+}
+
+expression Parser::parse_unary_expression(){ // a 2 ls + - and logical
     if(match_token(TokenType::INCREMENT, TokenType:: DECREMENT)){
         auto op = tokens[offset-1].value;
         auto base = parse_postfix_expression();
@@ -421,7 +471,7 @@ expression Parser::parse_postfix_expression() {
     auto left = parse_base();
 
     while (check_token(TokenType::INCREMENT, TokenType::DECREMENT, TokenType::INDEX_LEFT, 
-                       TokenType::PARENTHESIS_LEFT, TokenType::DOT, TokenType::SIZEOF)) {
+                       TokenType::PARENTHESIS_LEFT, TokenType::DOT)) {
         
         if (match_token(TokenType::INCREMENT)) {
             left = std::make_shared<PostfixIncrementExpression>(left);
@@ -469,7 +519,7 @@ expression Parser::parse_base(){
     }
     else if(check_token(TokenType::LITERAL_NUM)){
         std::string value = extract_token(TokenType::LITERAL_NUM);
-        if (value.find('.') != std::string::npos) {
+        if (value.find('.') != std::string::npos) { // v budushem ne nuzhno
             return std::make_shared<FloatLiteral>(value);
         } else {
             return std::make_shared<IntLiteral>(value);
@@ -486,11 +536,6 @@ expression Parser::parse_base(){
 
     throw std::runtime_error("parse base error " + tokens[offset].value);
 }
-
-
-
-
-
 
 
 

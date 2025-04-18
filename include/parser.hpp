@@ -14,8 +14,7 @@ private:
 	
 	std::vector<Token> tokens;
 	std::size_t offset;
-
-	static const std::unordered_map<std::string, int> operator_precedences;
+	
 	static const std::unordered_set<std::string> unary_operators;
 
 public:
@@ -48,23 +47,21 @@ public:
 	expression_statement parse_expression_statement();
 public:
 	expression parse_expression();
+	expression parse_comma_expression();
 	expression parse_assignment();
 	expression parse_ternary_expression();
+	expression parse_logical_or_expression();
+	expression parse_logical_and_expression();
+	expression parse_equality_expression();	
 	expression parse_compared_expression();
 
 	expression parse_sum_expression();
-	expression parse_mul_expression();	
+	expression parse_mul_expression();
+	expression parse_pow_expression();	
 	expression parse_unary_expression();
 	expression parse_postfix_expression();
-	// v parse postfix
-	//expr_ptr parse_access_expression();
-	//expr_ptr parse_subscript_expression(expr_ptr base);
-	//expr_ptr parse_call_expression(expr_ptr base);
-	//expr_ptr parse_increment_expression(expr_ptr base);
-	//
-
-	
 	expression parse_base();
+
 /*
 	expression parse_expression();
 	assignment_expression parse_assignment();

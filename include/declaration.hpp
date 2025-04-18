@@ -38,7 +38,7 @@ struct Declaration::InitDeclarator {
 };
 
 struct VarDeclaration: public Declaration {
-	std::string type;
+	std::string type; // change
 	std::vector<std::shared_ptr<InitDeclarator>> declarator_list;
 
 	VarDeclaration(const std::string&, const std::vector<std::shared_ptr<InitDeclarator>>&);
@@ -78,7 +78,7 @@ struct StructDeclaration: public Declaration {
 
 };
 
-struct ArrayDeclaration: public Declaration{
+struct ArrayDeclaration: public Declaration{ // v var declaration dobavit v array declarator
  	std::string type;
 	std::string name;
 	std::shared_ptr<Expression> size;
