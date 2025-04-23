@@ -22,7 +22,7 @@ std::shared_ptr<TranslationUnit> Parser::parse() {
     
     return std::make_shared<TranslationUnit>(ast_nodes);
 }
-
+ 
 
 bool Parser::is_type_specifier() {
     if (check_token(TokenType::TYPE) || check_token(TokenType::STRUCT)) {
