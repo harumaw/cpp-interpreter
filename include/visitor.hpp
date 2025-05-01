@@ -9,6 +9,7 @@ class Visitor {
 public:
 	virtual ~Visitor() = default;
 public:
+	virtual void visit(ASTNode&) = 0;
 	virtual void visit(TranslationUnit&) = 0;
 public:
 	virtual void visit(Declaration::PtrDeclarator&) = 0;

@@ -34,6 +34,7 @@ struct Expression: public ASTNode {
 
 struct TranslationUnit : public ASTNode {
     std::vector<std::shared_ptr<ASTNode>> declarations;
+	std::vector<std::shared_ptr<ASTNode>>& get_nodes();
 
     TranslationUnit(const std::vector<std::shared_ptr<ASTNode>>& declarations);
     void accept(Visitor& visitor) override;

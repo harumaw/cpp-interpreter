@@ -55,13 +55,13 @@ struct Composite : Type {
 };
 
 struct FuncType : Composite {
-    FuncType(std::shared_ptr<Type> return_type, std::vector<std::shared_ptr<Type>> args);
+    FuncType(std::shared_ptr<Type> return_type, std::vector<Type> args);
     std::shared_ptr<Type> get_returnable_type() const;
     std::vector<std::shared_ptr<Type>> get_args() const;
 
 private:
     std::shared_ptr<Type> returnable_type;
-    std::vector<std::shared_ptr<Type>> args;
+    std::vector<Type> args;
 };
 
 struct Record : Composite {

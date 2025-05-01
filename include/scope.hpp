@@ -11,7 +11,7 @@
 class Scope : public std::enable_shared_from_this<Scope> {
 public:
     Scope(std::shared_ptr<Scope> prev_scope, std::shared_ptr<ASTNode> node);
-
+    std::shared_ptr<Scope> create_new_table(std::shared_ptr<Scope> prev_scope, std::shared_ptr<ASTNode> node);
     std::shared_ptr<Scope> get_prev_table() const;
 
     Type match_variable(const std::string& name);

@@ -7,6 +7,7 @@ public:
 
 	void indent();
 public:
+	void visit(ASTNode&) override;
 	void visit(Declaration::PtrDeclarator&) override;
 	void visit(Declaration::SimpleDeclarator&) override;
 	void visit(Declaration::InitDeclarator&) override;

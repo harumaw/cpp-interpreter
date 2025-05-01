@@ -8,6 +8,13 @@ std::shared_ptr<Scope> Scope::get_prev_table() const {
     return prev_table;
 }
 
+std::shared_ptr<Scope> Scope::create_new_table(std::shared_ptr<Scope> prev_scope, std::shared_ptr<ASTNode> node) {
+    prev_scope = prev_scope;
+    auto scope = std::make_shared<Scope>(std::move(node));
+    return scope;
+}   
+
+
 Type Scope::match_variable(const std::string& name) {
     if (variables.contains(name)) {
         return variables.at(name);

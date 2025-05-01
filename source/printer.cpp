@@ -19,6 +19,15 @@ void Printer::visit(TranslationUnit& node) {
     std::cout << "}\n";
 }
 
+
+void Printer::visit(ASTNode& node) {
+    std::cout << "ASTNODE {\n";
+    std::cout << "}\n";
+}
+
+
+
+
 void Printer::visit(Declaration::SimpleDeclarator& node) {
     indent();
     std::cout << "SimpleDeclarator: " << node.name << "\n";

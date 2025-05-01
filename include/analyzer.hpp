@@ -2,12 +2,18 @@
 
 #include "ast.hpp"
 #include "visitor.hpp"
+#include "scope.hpp"
+#include "type.hpp"
 
 
 
 class Analyzer : public Visitor{
 public:
-	void visit(TranslationUnit&) override;
+	Analyzer();
+	void analyze(TranslationUnit&);
+public:
+	void visit(ASTNode&) override;
+	//void visit(TranslationUnit&) override;
 public:
 	void visit(Declaration::PtrDeclarator&) override;
 	void visit(Declaration::SimpleDeclarator&) override;
@@ -44,4 +50,10 @@ public:
 	void visit(ParenthesizedExpression&) override;
 	void visit(TernaryExpression&) override;
 	void visit(SizeOfExpression&) override;
+
+
+	Type get_type(Token);
+	static std::unordered_map<std::string, Type> default_types;
+	std::shared_ptr<Scope> scope;
+    Type current_type;
 };

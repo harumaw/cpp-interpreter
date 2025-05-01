@@ -27,19 +27,16 @@ FloatType::FloatType(std::any value) : Arithmetic(std::move(value)) {
     this->value = std::any_cast<double>(get_any_value());
 }
 
-// ---------------------------
-// Составные типы
-// ---------------------------
-FuncType::FuncType(std::shared_ptr<Type> return_type, std::vector<std::shared_ptr<Type>> args)
+FuncType::FuncType(std::shared_ptr<Type> return_type, std::vector<Type> args)
     : returnable_type(std::move(return_type)), args(std::move(args)) {}
 
 std::shared_ptr<Type> FuncType::get_returnable_type() const {
     return returnable_type;
 }
 
-std::vector<std::shared_ptr<Type>> FuncType::get_args() const {
+/*std::vector<std::shared_ptr<Type>> FuncType::get_args() const {
     return args;
-}
+}*/
 
 StructType::StructType(const std::unordered_map<std::string, std::shared_ptr<Type>>& members)
     : members(members) {}
