@@ -5,6 +5,8 @@
 #include <any>
 #include <memory>
 
+#include "expression.hpp"
+
 
 
 struct Type {
@@ -55,12 +57,12 @@ struct Composite : Type {
 };
 
 struct FuncType : Composite {
-    FuncType(std::shared_ptr<Type> return_type, std::vector<Type> args);
-    std::shared_ptr<Type> get_returnable_type() const;
+    FuncType(Type return_type, std::vector<Type> args);
+    Type get_returnable_type() const;
     std::vector<std::shared_ptr<Type>> get_args() const;
 
 private:
-    std::shared_ptr<Type> returnable_type;
+    Type returnable_type;
     std::vector<Type> args;
 };
 
@@ -68,11 +70,11 @@ struct Record : Composite {
 };
 
 struct StructType : Record {
-    explicit StructType(const std::unordered_map<std::string, std::shared_ptr<Type>>& members);
-    std::unordered_map<std::string, std::shared_ptr<Type>> get_members() const;
+    explicit StructType(const std::unordered_map<std::string, Type>& members);
+    std::unordered_map<std::string, Type> get_members() const;
 
 private:
-    std::unordered_map<std::string, std::shared_ptr<Type>> members;
+    std::unordered_map<std::string, Type> members;
 };
 
 struct PointerType : Composite {
@@ -103,11 +105,11 @@ private:
 };
 
 struct ArrayType : Composite {
-    ArrayType(std::shared_ptr<Type> base, int size);
-    std::shared_ptr<Type> get_base_type() const;
-    int get_size() const;
+    ArrayType(Type base, expression size); 
+    Type get_base_type() const;     
+    expression get_size() const;
 
 private:
-    std::shared_ptr<Type> base;
-    int size;
+    Type base; 
+    expression size;
 };

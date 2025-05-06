@@ -52,7 +52,7 @@ public:
 	void visit(SizeOfExpression&) override;
 
 
-	Type get_type(Token);
+	Type get_type(const std::string&);
 	static std::unordered_map<std::string, Type> default_types;
 	std::shared_ptr<Scope> scope;
     Type current_type;

@@ -27,10 +27,10 @@ FloatType::FloatType(std::any value) : Arithmetic(std::move(value)) {
     this->value = std::any_cast<double>(get_any_value());
 }
 
-FuncType::FuncType(std::shared_ptr<Type> return_type, std::vector<Type> args)
+FuncType::FuncType(Type return_type, std::vector<Type> args)
     : returnable_type(std::move(return_type)), args(std::move(args)) {}
 
-std::shared_ptr<Type> FuncType::get_returnable_type() const {
+Type FuncType::get_returnable_type() const {
     return returnable_type;
 }
 
@@ -38,10 +38,10 @@ std::shared_ptr<Type> FuncType::get_returnable_type() const {
     return args;
 }*/
 
-StructType::StructType(const std::unordered_map<std::string, std::shared_ptr<Type>>& members)
+StructType::StructType(const std::unordered_map<std::string, Type>& members)
     : members(members) {}
 
-std::unordered_map<std::string, std::shared_ptr<Type>> StructType::get_members() const {
+std::unordered_map<std::string, Type> StructType::get_members() const {
     return members;
 }
 
@@ -63,13 +63,12 @@ std::shared_ptr<Type> RValueType::get_referenced_type() const {
     return ref_to;
 }
 
-ArrayType::ArrayType(std::shared_ptr<Type> base, int size) : base(std::move(base)), size(size) {}
+ArrayType::ArrayType(Type base, expression size) : base(std::move(base)), size(size) {}
 
-std::shared_ptr<Type> ArrayType::get_base_type() const {
-    return base;
+Type ArrayType::get_base_type() const {
+    return base; // Возвращаем объект Type
 }
 
-int ArrayType::get_size() const {
+expression ArrayType::get_size() const {
     return size;
 }
-
