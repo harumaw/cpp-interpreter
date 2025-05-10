@@ -50,6 +50,12 @@ struct FloatType : Arithmetic {
     explicit FloatType(std::any value = 0.0);
 };
 
+struct StringType : Fundamental {
+    explicit StringType(std::string value = "");
+    std::string get_value() const;
+private:
+    std::string value;
+};
 // ---------------------------
 // Составные типы
 // ---------------------------

@@ -27,6 +27,12 @@ FloatType::FloatType(std::any value) : Arithmetic(std::move(value)) {
     this->value = std::any_cast<double>(get_any_value());
 }
 
+StringType::StringType(std::string value) : value(std::move(value)) {}
+
+std::string StringType::get_value() const {
+    return value;
+}
+
 FuncType::FuncType(Type return_type, std::vector<Type> args)
     : returnable_type(std::move(return_type)), args(std::move(args)) {}
 
