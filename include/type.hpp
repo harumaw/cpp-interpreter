@@ -59,7 +59,7 @@ struct Composite : Type {
 struct FuncType : Composite {
     FuncType(Type return_type, std::vector<Type> args);
     Type get_returnable_type() const;
-    std::vector<std::shared_ptr<Type>> get_args() const;
+    std::vector<Type> get_args() const; //mb changed
 
 private:
     Type returnable_type;

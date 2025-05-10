@@ -34,9 +34,9 @@ Type FuncType::get_returnable_type() const {
     return returnable_type;
 }
 
-/*std::vector<std::shared_ptr<Type>> FuncType::get_args() const {
+std::vector<Type> FuncType::get_args() const {
     return args;
-}*/
+}
 
 StructType::StructType(const std::unordered_map<std::string, Type>& members)
     : members(members) {}
