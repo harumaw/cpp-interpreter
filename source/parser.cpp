@@ -65,7 +65,7 @@ struct_declaration Parser::parse_struct_declaration() {
 
     std::string struct_name = tokens[offset].value;
     extract_token(TokenType::ID);
-
+    
 
     std::vector<std::shared_ptr<VarDeclaration>> members;
 
@@ -144,8 +144,15 @@ parameter_declaration Parser::parse_parameter_declaration() {
 }
 
 
-var_declaration Parser::parse_var_declaration() {
-    auto type = extract_token(TokenType::TYPE);
+var_declaration Parser::parse_var_declaration() { //maybe rework
+    std::string type;
+    if (check_token(TokenType::TYPE)) {
+        type = extract_token(TokenType::TYPE);
+    } else if (check_token(TokenType::ID)) {
+        type = extract_token(TokenType::ID);
+    } else {
+        throw std::runtime_error("Var : expected type or identifier, but got " + tokens[offset].value);
+    }
 
     std::vector<std::shared_ptr<Declaration::InitDeclarator>> declarator_list;
 
@@ -485,18 +492,21 @@ expression Parser::parse_postfix_expression() {
             left = std::make_shared<SubscriptExpression>(left, arg);
         }
         if (match_token(TokenType::PARENTHESIS_LEFT)) {
+            std::cout << tokens[offset].value << std::endl;
             std::vector<std::shared_ptr<Expression>> args;
             while (!check_token(TokenType::PARENTHESIS_RIGHT)) {
                 auto arg = parse_expression();
                 args.push_back(arg);
+                std::cout << tokens[offset].value << std::endl;
                 if (match_token(TokenType::COMMA)) {
-                    continue;
-                }
-                else {
-                    throw std::runtime_error("Expected comma");
+                    continue; 
+                } else if (check_token(TokenType::PARENTHESIS_RIGHT)) {
+                    break; 
+                } else {
+                    throw std::runtime_error("Expected comma or closing parenthesis");
                 }
             }
-            extract_token(TokenType::PARENTHESIS_RIGHT);
+            extract_token(TokenType::PARENTHESIS_RIGHT); 
             left = std::make_shared<FunctionCallExpression>(left, args);
         }
         if (match_token(TokenType::DOT)) {
