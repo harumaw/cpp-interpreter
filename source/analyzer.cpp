@@ -2,6 +2,7 @@
 #include "analyzer.hpp"
 #include "token.hpp"
 #include <stdexcept>
+#include "semantic_exception.hpp"
 
 std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types = {
     {"int",    std::make_shared<IntegerType>()},
@@ -18,8 +19,15 @@ Analyzer::Analyzer()
 
 void Analyzer::analyze(TranslationUnit& unit) {
     scope = std::make_shared<Scope>(nullptr, nullptr);
-    for (auto& node : unit.get_nodes())
-        visit(*node);
+    errors.clear();
+
+    for (auto& node : unit.get_nodes()) {
+        try {
+            visit(*node);
+        } catch (const SemanticException& e) {
+            errors.push_back(e.what());
+        }
+    }
 }
 
 void Analyzer::visit(TranslationUnit& unit) {
@@ -52,7 +60,7 @@ void Analyzer::visit(VarDeclaration& node) {
         decl->declarator->accept(*this);
         const auto& name = decl->declarator->name;
         if (scope->has_variable(name))
-            throw std::runtime_error("variable already declared: " + name);
+            throw SemanticException("variable already declared: " + name);
         scope->push_variable(name, current_type);
         if (decl->initializer)
             decl->initializer->accept(*this);
@@ -65,7 +73,7 @@ void Analyzer::visit(ParameterDeclaration& node) {
     node.init_declarator->declarator->accept(*this);
     const auto& name = node.init_declarator->declarator->name;
     if (scope->has_variable(name))
-        throw std::runtime_error("parameter already declared: " + name);
+        throw SemanticException("parameter already declared: " + name);
     scope->push_variable(name, current_type);
     if (node.init_declarator->initializer)
         node.init_declarator->initializer->accept(*this);
@@ -95,7 +103,7 @@ void Analyzer::visit(FuncDeclaration& node) {
     for (size_t i = 0; i < node.args.size(); ++i) {
         const auto& pname = node.args[i]->init_declarator->declarator->name;
         if (scope->has_variable(pname))
-            throw std::runtime_error("parameter already declared: " + pname);
+            throw SemanticException("parameter already declared: " + pname);
         scope->push_variable(pname, arg_types[i]);
     }
 
@@ -124,11 +132,11 @@ void Analyzer::visit(StructDeclaration& node) {
 void Analyzer::visit(ArrayDeclaration& node) {
     node.size->accept(*this);
     if (!dynamic_cast<Integral*>(current_type.get()))
-        throw std::runtime_error("array size must be integer");
+        throw SemanticException("array size must be integer");
     auto base_t = get_type(node.type);
     auto arr_t = std::make_shared<ArrayType>(base_t, node.size);
     if (scope->has_variable(node.name))
-        throw std::runtime_error("variable already declared: " + node.name);
+        throw SemanticException("variable already declared: " + node.name);
     scope->push_variable(node.name, arr_t);
     current_type = arr_t;
 }
@@ -189,26 +197,26 @@ void Analyzer::visit(BinaryOperation& node) {
     node.rhs->accept(*this);
     auto right = current_type;
     if (!left->equals(right) || dynamic_cast<Arithmetic*>(left.get()) == nullptr)
-        throw std::runtime_error("type mismatch in binary operation");
+        throw SemanticException("type mismatch in binary operation");
     current_type = left;
 }
 
 void Analyzer::visit(PrefixExpression& node) {
     node.base->accept(*this);
     if (dynamic_cast<Arithmetic*>(current_type.get()) == nullptr)
-        throw std::runtime_error("invalid type for prefix operation");
+        throw SemanticException("invalid type for prefix operation");
 }
 
 void Analyzer::visit(PostfixIncrementExpression& node) {
     node.base->accept(*this);
     if (dynamic_cast<Arithmetic*>(current_type.get()) == nullptr)
-        throw std::runtime_error("invalid type for postfix increment");
+        throw SemanticException("invalid type for postfix increment");
 }
 
 void Analyzer::visit(PostfixDecrementExpression& node) {
     node.base->accept(*this);
     if (dynamic_cast<Arithmetic*>(current_type.get()) == nullptr)
-        throw std::runtime_error("invalid type for postfix decrement");
+        throw SemanticException("invalid type for postfix decrement");
 }
 
 void Analyzer::visit(FunctionCallExpression& node) {
@@ -230,16 +238,16 @@ void Analyzer::visit(FunctionCallExpression& node) {
         node.base->accept(*this);
         func_t = std::dynamic_pointer_cast<FuncType>(current_type);
         if (!func_t) {
-            throw std::runtime_error("expression is not a function");
+            throw SemanticException("expression is not a function");
         }
         // здесь мы тоже проверяем count и типы, на всякий случай
         auto params = func_t->get_args();
         if (params.size() != arg_types.size()) {
-            throw std::runtime_error("argument count mismatch");
+            throw SemanticException("argument count mismatch");
         }
         for (size_t i = 0; i < arg_types.size(); ++i) {
             if (!arg_types[i]->equals(params[i])) {
-                throw std::runtime_error("argument type mismatch");
+                throw SemanticException("argument type mismatch");
             }
         }
     }
@@ -252,10 +260,10 @@ void Analyzer::visit(SubscriptExpression& node) {
     node.base->accept(*this);
     auto arr_t = std::dynamic_pointer_cast<ArrayType>(current_type);
     if (!arr_t)
-        throw std::runtime_error("expression is not an array");
+        throw SemanticException("expression is not an array");
     node.index->accept(*this);
     if (dynamic_cast<Integral*>(current_type.get()) == nullptr)
-        throw std::runtime_error("index must be an integer");
+        throw SemanticException("index must be an integer");
     current_type = arr_t->get_base_type();
 }
 
@@ -263,7 +271,7 @@ void Analyzer::visit(IdentifierExpression& node) {
     try {
         current_type = scope->match_variable(node.name);
     } catch (...) {
-        throw std::runtime_error("undefined variable: " + node.name);
+        throw SemanticException("undefined variable: " + node.name);
     }
 }
 
@@ -293,7 +301,7 @@ void Analyzer::visit(TernaryExpression& node) {
     auto t1 = current_type;
     node.false_expr->accept(*this);
     if (!t1->equals(current_type))
-        throw std::runtime_error("ternary expression types do not match");
+        throw SemanticException("ternary expression types do not match");
     current_type = t1;
 }
 
@@ -303,14 +311,14 @@ void Analyzer::visit(StructMemberAccessExpression& node) {
     // проверяем, что это действительно StructType
     auto struct_t = std::dynamic_pointer_cast<StructType>(current_type);
     if (!struct_t) {
-        throw std::runtime_error("expression is not a struct");
+        throw SemanticException("expression is not a struct");
     }
     // достаём мапу полей
     auto members = struct_t->get_members();
     // ищем нужное имя
     auto it = members.find(node.member);
     if (it == members.end()) {    // 1) Сначала проходим по всем аргументам и собираем их типы
-        throw std::runtime_error("struct does not have member: " + node.member);
+        throw SemanticException("struct does not have member: " + node.member);
     }
     // результатом обращения становится тип этого поля
     current_type = it->second;
@@ -333,8 +341,10 @@ std::shared_ptr<Type> Analyzer::get_type(const std::string& name) {
         auto it = default_types.find(name);
         if (it != default_types.end()) return it->second;
     }
-    throw std::runtime_error("unknown type: " + name);
+    throw SemanticException("unknown type: " + name);
 }
+
+
 
 void Analyzer::visit(DoWhileStatement& node) {
     node.statement->accept(*this);

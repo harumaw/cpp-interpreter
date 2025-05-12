@@ -11,6 +11,11 @@ class Analyzer : public Visitor{
 public:
 	Analyzer();
 	void analyze(TranslationUnit&);
+	std::vector<std::string> errors;
+	const std::vector<std::string>& get_errors() const{
+		return errors;
+	}
+
 public:
 	void visit(ASTNode&) override;
 	void visit(TranslationUnit& unit) override;
