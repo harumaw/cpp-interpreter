@@ -406,3 +406,24 @@ void Printer::visit(SizeOfExpression& node) {
 
     --indent_level;
 }
+
+void Printer::visit(DoWhileStatement& node) {
+    indent();
+    std::cout << "DoWhileStatement:\n";
+    
+    ++indent_level;
+    
+    indent();
+    std::cout << "Body:\n";
+    ++indent_level;
+    node.statement->accept(*this);
+    --indent_level;
+
+    indent();
+    std::cout << "Condition:\n";
+    ++indent_level;
+    node.condition->accept(*this);
+    --indent_level;
+
+    --indent_level;
+}

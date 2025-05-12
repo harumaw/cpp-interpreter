@@ -95,6 +95,15 @@ struct ExpressionStatement: public Statement {
 	void accept(Visitor&) override;
 };
 
+struct DoWhileStatement : public LoopStatement{
+	std::shared_ptr<Statement> statement;
+	std::shared_ptr<Expression> condition;
+	DoWhileStatement(
+		const std::shared_ptr<Statement>&,
+		const std::shared_ptr<Expression>&
+	);
+	void accept(Visitor&) override;
+};
 using statement = std::shared_ptr<Statement>;
 using compound_statement = std::shared_ptr<CompoundStatement>;
 using conditional_statement = std::shared_ptr<ConditionalStatement>;
@@ -107,4 +116,5 @@ using continue_statement = std::shared_ptr<ContinueStatement>;
 using return_statement = std::shared_ptr<ReturnStatement>;
 using declaration_statement = std::shared_ptr<DeclarationStatement>;
 using expression_statement = std::shared_ptr<ExpressionStatement>;
+using do_while_statement = std::shared_ptr<DoWhileStatement>;
 

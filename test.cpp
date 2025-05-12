@@ -7,5 +7,5 @@ A a;
 
 int main() {
     a.a = 4;
-    return 0;
+    return;
 }

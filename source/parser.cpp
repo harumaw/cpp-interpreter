@@ -201,7 +201,7 @@ statement Parser::parse_statement() {
         return parse_compound_statement();
     } else if (match_token(TokenType::IF)) {
         return parse_conditional_statement();
-    } else if (check_token(TokenType::WHILE) || check_token(TokenType::FOR)) {
+    } else if (check_token(TokenType::WHILE) || check_token(TokenType::FOR) || check_token(TokenType::DO)) {
         return parse_loop_statement();
     } else if (check_token(TokenType::RETURN, TokenType::BREAK, TokenType::CONTINUE)) {
         return parse_jump_statement();
@@ -242,10 +242,25 @@ loop_statement Parser::parse_loop_statement() { //do-while
         return parse_while_statement();
     } else if (match_token(TokenType::FOR)) {
         return parse_for_statement();
-    } else {
+    } else if (match_token(TokenType::DO)){
+        return parse_do_while_statement();
+    } 
+    else {
+
         throw std::runtime_error("Unexpected token in loop statement:" + tokens[offset].value);
     }
 }
+
+do_while_statement Parser::parse_do_while_statement(){
+    auto statement = parse_statement();
+    extract_token(TokenType::WHILE);
+    extract_token(TokenType::PARENTHESIS_LEFT);
+    auto condition = parse_expression();
+    extract_token(TokenType::PARENTHESIS_RIGHT);
+    extract_token(TokenType::SEMICOLON);
+    return std::make_shared<DoWhileStatement>(statement, condition);
+}
+
 
 while_statement Parser::parse_while_statement() {
     extract_token(TokenType::PARENTHESIS_LEFT);

@@ -67,3 +67,11 @@ ExpressionStatement::ExpressionStatement(
 void ExpressionStatement::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
+
+DoWhileStatement::DoWhileStatement(
+	const std::shared_ptr<Statement>& statement,
+	const std::shared_ptr<Expression>& condition
+	) : statement(statement), condition(condition) {}
+void DoWhileStatement::accept(Visitor& visitor) {
+	visitor.visit(*this);
+}

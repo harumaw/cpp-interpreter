@@ -31,6 +31,7 @@ public:
 	virtual void visit(BreakStatement&) = 0;
 	virtual void visit(ContinueStatement&) = 0;
 	virtual void visit(StructMemberAccessExpression&) = 0;
+	virtual void visit(DoWhileStatement&) = 0;
 public:
 	virtual void visit(BinaryOperation&) = 0;
 	virtual void visit(PrefixExpression&) = 0;

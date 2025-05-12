@@ -335,3 +335,8 @@ std::shared_ptr<Type> Analyzer::get_type(const std::string& name) {
     }
     throw std::runtime_error("unknown type: " + name);
 }
+
+void Analyzer::visit(DoWhileStatement& node) {
+    node.statement->accept(*this);
+    node.condition->accept(*this);
+}

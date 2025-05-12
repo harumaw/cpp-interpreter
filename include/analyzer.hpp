@@ -34,6 +34,7 @@ public:
 	void visit(BreakStatement&) override;
 	void visit(ContinueStatement&) override;
 	void visit(StructMemberAccessExpression&) override;
+	void visit(DoWhileStatement&) override;
 public:
 	void visit(BinaryOperation&) override;
 	void visit(PrefixExpression&) override;

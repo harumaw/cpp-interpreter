@@ -7,9 +7,23 @@
 
 #include "expression.hpp"
 
+enum class TypeRank{
+    Void = 0,  
+    NullPtr = 1,  
+    Bool = 2,  
+    Char = 3,  
+    Int = 4,  
+    Float = 5,  
+    Double = 6,  
+    String = 7,  
+
+};
+
 struct Type {
     virtual ~Type() = default;
     virtual bool equals(const std::shared_ptr<Type>& other) const = 0;
+
+
 };
 
 // ---------------------------
