@@ -1,8 +1,11 @@
-#include <iostream>
+struct  A
+{
+  int a = 4;
+};
 
-int main(){ 
-    int x = 2;
-    char c = 'a';
+A a;
 
-    std::cout << x +c << std::endl;
+int main() {
+    a.a = 4;
+    return 0;
 }

@@ -1,340 +1,337 @@
+
 #include "analyzer.hpp"
 #include "token.hpp"
-#include <memory>
+#include <stdexcept>
 
-
-std::unordered_map<std::string, Type> Analyzer::default_types = {
-    {"int", IntegerType()},    
-    {"float", FloatType()},   
-    {"double", FloatType()},  
-    {"char", CharType()},      
-    {"bool", BoolType()}       
+std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types = {
+    {"int",    std::make_shared<IntegerType>()},
+    {"float",  std::make_shared<FloatType>()},
+    {"double", std::make_shared<FloatType>()},
+    {"char",   std::make_shared<CharType>()},
+    {"bool",   std::make_shared<BoolType>()}
 };
 
-Analyzer::Analyzer() : scope(nullptr) {}
+Analyzer::Analyzer()
+  : scope(std::make_shared<Scope>(nullptr, nullptr))
+  , current_type(nullptr)
+{}
 
 void Analyzer::analyze(TranslationUnit& unit) {
+    scope = std::make_shared<Scope>(nullptr, nullptr);
+    for (auto& node : unit.get_nodes())
+        visit(*node);
+}
+
+void Analyzer::visit(TranslationUnit& unit) {
     for (auto& node : unit.get_nodes()) {
-        this->visit(*node); 
+        visit(*node);
     }
 }
 
-void Analyzer::visit(ASTNode& node){
+void Analyzer::visit(ASTNode& node) {
     node.accept(*this);
 }
 
-/*void Analyzer::visit(VarDeclaration& var_decl){
-    auto type = var_decl.type;
-    auto declarations = var_decl.declarator_list;
-
-    if()
-}*/
-
-void Analyzer::visit(Declaration::PtrDeclarator& node) {
-    // Обработка указателя-декларатора
-    current_type = PointerType(get_type(node.name)); 
+void Analyzer::visit(Declaration::SimpleDeclarator& node) {
 }
 
-void Analyzer::visit(Declaration::SimpleDeclarator& node) {
-    current_type = get_type(node.name);
+void Analyzer::visit(Declaration::PtrDeclarator& node) {
+    current_type = std::make_shared<PointerType>(current_type);
 }
 
 void Analyzer::visit(Declaration::InitDeclarator& node) {
-    if (auto ptr_declarator = dynamic_cast<Declaration::PtrDeclarator*>(node.declarator.get())) {
-        this->visit(*ptr_declarator); 
-    } else if (auto simple_declarator = dynamic_cast<Declaration::SimpleDeclarator*>(node.declarator.get())) {
-        this->visit(*simple_declarator); 
-    } else {
-        throw std::runtime_error("Unsupported declarator type");
-    }
-    if (node.initializer) {
-        this->visit(*node.initializer); 
-    }
+    node.declarator->accept(*this);
+    if (node.initializer)
+        node.initializer->accept(*this);
 }
 
 void Analyzer::visit(VarDeclaration& node) {
-    auto type = get_type(node.type); 
-    for (auto& declarator : node.declarator_list) {
-        this->visit(*declarator); 
-        scope->push_variable(declarator->declarator->name, type);
+    auto declared = get_type(node.type);
+    for (auto& decl : node.declarator_list) {
+        current_type = declared;
+        decl->declarator->accept(*this);
+        const auto& name = decl->declarator->name;
+        if (scope->has_variable(name))
+            throw std::runtime_error("variable already declared: " + name);
+        scope->push_variable(name, current_type);
+        if (decl->initializer)
+            decl->initializer->accept(*this);
     }
 }
 
 void Analyzer::visit(ParameterDeclaration& node) {
-    auto type = get_type(node.type); 
-    this->visit(*node.init_declarator); 
-    scope->push_variable(node.init_declarator->declarator->name, type);
+    auto declared = get_type(node.type);
+    current_type = declared;
+    node.init_declarator->declarator->accept(*this);
+    const auto& name = node.init_declarator->declarator->name;
+    if (scope->has_variable(name))
+        throw std::runtime_error("parameter already declared: " + name);
+    scope->push_variable(name, current_type);
+    if (node.init_declarator->initializer)
+        node.init_declarator->initializer->accept(*this);
 }
-
 void Analyzer::visit(FuncDeclaration& node) {
-    auto return_type = get_type(node.type);
-    std::vector<Type> arg_types;
-    scope = scope->create_new_table(scope, node.body); 
+    // 1. Получаем возвращаемый тип
+    auto return_t = get_type(node.type);
+
+    // 2. Собираем типы параметров (но ещё не входим в тело)
+    std::vector<std::shared_ptr<Type>> arg_types;
     for (auto& param : node.args) {
-        this->visit(*param); 
-        arg_types.push_back(current_type); 
+        // Аналогично VarDeclaration: сбрасываем current_type на базовый
+        current_type = get_type(param->type);
+        // Разбираем сам declarator (Simple или Ptr)
+        param->init_declarator->declarator->accept(*this);
+        arg_types.push_back(current_type);
     }
-    auto func_type = FuncType(return_type, arg_types); 
-    scope->push_func(node.declarator->name, func_type); 
-    this->visit(*node.body);
-    scope = scope->get_prev_table(); 
-    current_type = func_type; 
+
+    // 3. Создаём FuncType и регистрируем её в родительском скоупе
+    auto func_t = std::make_shared<FuncType>(return_t, arg_types);
+    scope->push_func(node.declarator->name, func_t);
+
+    // 4. Заходим в новый скоуп для тела функции
+    scope = scope->create_new_table(scope, node.body);
+
+    // 5. Регистрируем параметры как переменные в теле
+    for (size_t i = 0; i < node.args.size(); ++i) {
+        const auto& pname = node.args[i]->init_declarator->declarator->name;
+        if (scope->has_variable(pname))
+            throw std::runtime_error("parameter already declared: " + pname);
+        scope->push_variable(pname, arg_types[i]);
+    }
+
+    // 6. Разбираем тело
+    node.body->accept(*this);
+
+    // 7. Возвращаемся из скоупа
+    scope = scope->get_prev_table();
+
+    // 8. Отдаём в current_type сам FuncType
+    current_type = func_t;
 }
 
 void Analyzer::visit(StructDeclaration& node) {
-    std::unordered_map<std::string, Type> members;
-    for (auto& member : node.members) {
-        this->visit(*member); 
-        members[member->declarator_list[0]->declarator->name] = current_type; 
+    std::unordered_map<std::string, std::shared_ptr<Type>> members;
+    for (auto& m : node.members) {
+        m->accept(*this);
+        const auto& name = m->declarator_list[0]->declarator->name;
+        members[name] = current_type;
     }
-    auto struct_type = StructType(members); 
-    scope->push_struct(node.name, struct_type); 
-    current_type = struct_type;
+    auto st = std::make_shared<StructType>(members);
+    scope->push_struct(node.name, st);
+    current_type = st;
 }
 
 void Analyzer::visit(ArrayDeclaration& node) {
-    auto element_type = get_type(node.type); 
-    this->visit(*node.size);
-    current_type = ArrayType(element_type, node.size);
+    node.size->accept(*this);
+    if (!dynamic_cast<Integral*>(current_type.get()))
+        throw std::runtime_error("array size must be integer");
+    auto base_t = get_type(node.type);
+    auto arr_t = std::make_shared<ArrayType>(base_t, node.size);
+    if (scope->has_variable(node.name))
+        throw std::runtime_error("variable already declared: " + node.name);
+    scope->push_variable(node.name, arr_t);
+    current_type = arr_t;
 }
 
+
 void Analyzer::visit(CompoundStatement& node) {
-    scope = scope->create_new_table(scope, std::make_shared<CompoundStatement>(node)); 
-    for (auto& stmt : node.statements) {
-        this->visit(*stmt); 
-    }
-    scope = scope->get_prev_table(); 
+    scope = scope->create_new_table(scope, std::make_shared<CompoundStatement>(node));
+    for (auto& s : node.statements)
+        s->accept(*this);
+    scope = scope->get_prev_table();
 }
 
 void Analyzer::visit(DeclarationStatement& node) {
-    this->visit(*node.declaration); 
+    node.declaration->accept(*this);
 }
 
 void Analyzer::visit(ExpressionStatement& node) {
-    this->visit(*node.expression);
+    node.expression->accept(*this);
 }
 
-
 void Analyzer::visit(ConditionalStatement& node) {
-    this->visit(*(node.if_branch.first)); 
-    this->visit(*(node.if_branch.second));
-    if (node.else_branch) {
-        this->visit(*node.else_branch); 
-    }
+    node.if_branch.first->accept(*this);
+    node.if_branch.second->accept(*this);
+    if (node.else_branch)
+        node.else_branch->accept(*this);
 }
 
 void Analyzer::visit(WhileStatement& node) {
-    this->visit(*node.condition);
-    this->visit(*node.statement); 
+    node.condition->accept(*this);
+    node.statement->accept(*this);
 }
 
 void Analyzer::visit(ForStatement& node) {
-    if (node.initialization) {
-        this->visit(*node.initialization); 
-    }
-    if (node.condition) {
-        this->visit(*node.condition); 
-    }
-    if (node.increment) {
-        this->visit(*node.increment);
-    }
-    this->visit(*node.body);
+    if (node.initialization)
+        node.initialization->accept(*this);
+
+    if (node.condition)
+        node.condition->accept(*this);
+
+    if (node.increment)
+        node.increment->accept(*this);
+        
+    node.body->accept(*this);
 }
 
 void Analyzer::visit(ReturnStatement& node) {
-    if (node.expression) {
-        this->visit(*node.expression); 
-    }
+    if (node.expression)
+        node.expression->accept(*this);
 }
 
-void Analyzer::visit(BreakStatement& node) {
-
-}
-
-void Analyzer::visit(ContinueStatement& node) {
-}
+void Analyzer::visit(BreakStatement& /*node*/) {}
+void Analyzer::visit(ContinueStatement& /*node*/) {}
 
 
 void Analyzer::visit(BinaryOperation& node) {
-    this->visit(*node.lhs); 
-    auto left_type = current_type;
-    this->visit(*node.rhs); 
-    auto right_type = current_type;
-
-    if (dynamic_cast<Composite*>(&left_type)) {
-        //
-    }
-    if (dynamic_cast<Composite*>(&right_type)) {
-        //
-    }
-
-
-    if (dynamic_cast<Arithmetic*>(&left_type) != dynamic_cast<Arithmetic*>(&right_type)) {
+    node.lhs->accept(*this);
+    auto left = current_type;
+    node.rhs->accept(*this);
+    auto right = current_type;
+    if (!left->equals(right) || dynamic_cast<Arithmetic*>(left.get()) == nullptr)
         throw std::runtime_error("type mismatch in binary operation");
-    }
-    current_type = left_type; 
+    current_type = left;
 }
 
-void Analyzer::visit(PrefixExpression& node){
-    this->visit(*node.base); 
-    auto base_type = current_type;
-    if (dynamic_cast<Arithmetic*>(&base_type) == nullptr) {
+void Analyzer::visit(PrefixExpression& node) {
+    node.base->accept(*this);
+    if (dynamic_cast<Arithmetic*>(current_type.get()) == nullptr)
         throw std::runtime_error("invalid type for prefix operation");
-    }
-    current_type = base_type; 
 }
 
 void Analyzer::visit(PostfixIncrementExpression& node) {
-    this->visit(*node.base); 
-    auto base_type = current_type;
-    if (dynamic_cast<Arithmetic*>(&base_type) == nullptr) {
+    node.base->accept(*this);
+    if (dynamic_cast<Arithmetic*>(current_type.get()) == nullptr)
         throw std::runtime_error("invalid type for postfix increment");
-    }
-    current_type = base_type; 
 }
 
 void Analyzer::visit(PostfixDecrementExpression& node) {
-    this->visit(*node.base); 
-    auto base_type = current_type;
-    if (dynamic_cast<Arithmetic*>(&base_type) == nullptr) {
+    node.base->accept(*this);
+    if (dynamic_cast<Arithmetic*>(current_type.get()) == nullptr)
         throw std::runtime_error("invalid type for postfix decrement");
-    }
-    current_type = base_type; 
 }
 
 void Analyzer::visit(FunctionCallExpression& node) {
-    this->visit(*node.base); 
-    auto base_type = current_type;
-
-    auto func_type = dynamic_cast<FuncType*>(&base_type);
-    if (!func_type) {
-        throw std::runtime_error("expression is not a function");
+    // 1) Сначала проходим по всем аргументам и собираем их типы
+    std::vector<std::shared_ptr<Type>> arg_types;
+    for (auto& arg : node.args) {
+        arg->accept(*this);
+        arg_types.push_back(current_type);
     }
 
-    auto func_args = func_type->get_args();
-    if (node.args.size() != func_args.size()) {
-        throw std::runtime_error("argument count mismatch");
-    }
-
-    for (size_t i = 0; i < node.args.size(); ++i) {
-        this->visit(*node.args[i]); 
-        auto arg_type = current_type;
-        if (arg_type != func_args[i]) { // нужно реализовать логику для сравнения оьъектов двух типов на предмет неравенства
-            throw std::runtime_error("argument type mismatch");
+    // 2) Ищем функцию: если базовое выражение — просто идентификатор, 
+    //    то используем match_function, иначе пытаемся взять из current_type
+    std::shared_ptr<FuncType> func_t;
+    if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
+        // имя функции в виде идентификатора
+        func_t = scope->match_function(ident->name, arg_types);
+    } else {
+        // вычисляем выражение, надеясь на функцию-указатель или лямбду
+        node.base->accept(*this);
+        func_t = std::dynamic_pointer_cast<FuncType>(current_type);
+        if (!func_t) {
+            throw std::runtime_error("expression is not a function");
+        }
+        // здесь мы тоже проверяем count и типы, на всякий случай
+        auto params = func_t->get_args();
+        if (params.size() != arg_types.size()) {
+            throw std::runtime_error("argument count mismatch");
+        }
+        for (size_t i = 0; i < arg_types.size(); ++i) {
+            if (!arg_types[i]->equals(params[i])) {
+                throw std::runtime_error("argument type mismatch");
+            }
         }
     }
 
-    current_type = func_type->get_returnable_type();
+    // 3) Всё ок, запоминаем возвращаемый тип
+    current_type = func_t->get_returnable_type();
 }
 
 void Analyzer::visit(SubscriptExpression& node) {
-    this->visit(*node.base); 
-    auto base_type = current_type;
-    this->visit(*node.index); 
-    auto index_type = current_type;
-
-    if (dynamic_cast<Arithmetic*>(&index_type) == nullptr) {
-        throw std::runtime_error("index must be an integer");
-    }
-
-    auto array_type = dynamic_cast<ArrayType*>(&base_type);
-    if (!array_type) {
+    node.base->accept(*this);
+    auto arr_t = std::dynamic_pointer_cast<ArrayType>(current_type);
+    if (!arr_t)
         throw std::runtime_error("expression is not an array");
-    }
+    node.index->accept(*this);
+    if (dynamic_cast<Integral*>(current_type.get()) == nullptr)
+        throw std::runtime_error("index must be an integer");
+    current_type = arr_t->get_base_type();
+}
 
-    current_type = array_type->get_base_type(); 
-}
-void Analyzer::visit(IntLiteral& node) {
-    current_type = IntegerType(node.value); 
-}
-void Analyzer::visit(FloatLiteral& node) {
-    current_type = FloatType(node.value); 
-}
-void Analyzer::visit(CharLiteral& node) {
-    current_type = CharType(node.value); 
-}
-void Analyzer::visit(StringLiteral& node) { //realizovatb
-    current_type = StringType(node.value); 
-}
-void Analyzer::visit(BoolLiteral& node) {
-    current_type = BoolType(node.value); 
-}
 void Analyzer::visit(IdentifierExpression& node) {
     try {
         current_type = scope->match_variable(node.name);
-    } catch (const std::runtime_error&) {
+    } catch (...) {
         throw std::runtime_error("undefined variable: " + node.name);
     }
 }
 
+void Analyzer::visit(IntLiteral& node){   
+    current_type = std::make_shared<IntegerType>(static_cast<int8_t>(node.value)); 
+}
+void Analyzer::visit(FloatLiteral& node) { 
+     current_type = std::make_shared<FloatType>(static_cast<double>(node.value));
+}
+void Analyzer::visit(CharLiteral& node){ 
+    current_type = std::make_shared<CharType>(static_cast<char16_t>(node.value)); 
+}
+void Analyzer::visit(StringLiteral& node) { 
+    current_type = std::make_shared<StringType>(node.value); 
+}
+void Analyzer::visit(BoolLiteral& node) { 
+    current_type = std::make_shared<BoolType>(node.value); 
+}
+
 void Analyzer::visit(ParenthesizedExpression& node) {
-    this->visit(*node.expression); 
+    node.expression->accept(*this);
 }
 
 void Analyzer::visit(TernaryExpression& node) {
-    this->visit(*node.condition); 
-    auto condition_type = current_type;
-
-    this->visit(*node.true_expr); 
-    auto true_type = current_type;
-    this->visit(*node.false_expr); 
-    auto false_type = current_type;
-
-
-    if (dynamic_cast<Composite*>(&true_type)) {
-        // 
-    }
-    if (dynamic_cast<Composite*>(&false_type)){
-        //
-    }
-
-
-    if (dynamic_cast<decltype(true_type)*>(&false_type)) {
+    node.condition->accept(*this);
+    node.true_expr->accept(*this);
+    auto t1 = current_type;
+    node.false_expr->accept(*this);
+    if (!t1->equals(current_type))
         throw std::runtime_error("ternary expression types do not match");
-    }
-    current_type = true_type; 
+    current_type = t1;
 }
+
+void Analyzer::visit(StructMemberAccessExpression& node) {
+    // сначала вычисляем тип базового выражения
+    node.base->accept(*this);
+    // проверяем, что это действительно StructType
+    auto struct_t = std::dynamic_pointer_cast<StructType>(current_type);
+    if (!struct_t) {
+        throw std::runtime_error("expression is not a struct");
+    }
+    // достаём мапу полей
+    auto members = struct_t->get_members();
+    // ищем нужное имя
+    auto it = members.find(node.member);
+    if (it == members.end()) {    // 1) Сначала проходим по всем аргументам и собираем их типы
+        throw std::runtime_error("struct does not have member: " + node.member);
+    }
+    // результатом обращения становится тип этого поля
+    current_type = it->second;
+}
+
 
 void Analyzer::visit(SizeOfExpression& node) {
     if (node.is_type) {
         current_type = get_type(node.type_name);
     } else {
-        this->visit(*node.expression); 
-        auto expr_type = current_type;
-        current_type = IntegerType(sizeof(expr_type)); 
+        node.expression->accept(*this);
+        current_type = std::make_shared<IntegerType>(sizeof(void*));
     }
-} 
-
-void Analyzer::visit(StructMemberAccessExpression& node) {
-    this->visit(*node.base); 
-    auto base_type = current_type;
-
-    auto struct_type = dynamic_cast<StructType*>(&base_type);
-    if (!struct_type) {
-        throw std::runtime_error("expression is not a struct");
-    }
-
-    auto members = struct_type->get_members();
-    if (members.find(node.member) == members.end()) {
-        throw std::runtime_error("struct does not have member: " + node.member);
-    }
-
-    current_type = members[node.member]; 
 }
 
-Type Analyzer::get_type(const std::string& type_name) {
+std::shared_ptr<Type> Analyzer::get_type(const std::string& name) {
     try {
-        return scope->match_struct(type_name);
-    } catch (const std::runtime_error&) {
-        return default_types.at(type_name);
+        return scope->match_struct(name);
+    } catch (...) {
+        auto it = default_types.find(name);
+        if (it != default_types.end()) return it->second;
     }
+    throw std::runtime_error("unknown type: " + name);
 }
-
-
-
-/*
-1. dodelatb expression
-2. match_struct sdelatb chtobi pravilno kidalo exception
-3. mb current type na shared ptrx
-4. ispravitb types
-*/

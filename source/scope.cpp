@@ -1,5 +1,4 @@
 #include "scope.hpp"
-#include <stdexcept>
 
 Scope::Scope(std::shared_ptr<Scope> prev_scope, std::shared_ptr<ASTNode> node)
     : prev_table(std::move(prev_scope)), node(std::move(node)) {}
@@ -8,16 +7,15 @@ std::shared_ptr<Scope> Scope::get_prev_table() const {
     return prev_table;
 }
 
-std::shared_ptr<Scope> Scope::create_new_table(std::shared_ptr<Scope> prev_scope, std::shared_ptr<ASTNode> node) {
-    prev_scope = prev_scope;
-    auto scope = std::make_shared<Scope>(std::move(node));
-    return scope;
-}   
+std::shared_ptr<Scope> Scope::create_new_table(std::shared_ptr<Scope> prev_scope,
+                                              std::shared_ptr<ASTNode> node) {
+    return std::make_shared<Scope>(std::move(prev_scope), std::move(node));
+}
 
-
-Type Scope::match_variable(const std::string& name) {
-    if (variables.contains(name)) {
-        return variables.at(name);
+std::shared_ptr<Type> Scope::match_variable(const std::string& name) {
+    auto it = variables.find(name);
+    if (it != variables.end()) {
+        return it->second;
     }
     if (prev_table) {
         return prev_table->match_variable(name);
@@ -25,9 +23,10 @@ Type Scope::match_variable(const std::string& name) {
     throw std::runtime_error("Variable not found: " + name);
 }
 
-StructType Scope::match_struct(const std::string& name) {
-    if (structs.contains(name)) {
-        return structs.at(name);
+std::shared_ptr<Type> Scope::match_struct(const std::string& name) {
+    auto it = structs.find(name);
+    if (it != structs.end()) {
+        return it->second;
     }
     if (prev_table) {
         return prev_table->match_struct(name);
@@ -35,45 +34,40 @@ StructType Scope::match_struct(const std::string& name) {
     throw std::runtime_error("Struct not found: " + name);
 }
 
-FuncType Scope::match_function(std::string name, std::vector<Type> args){
+std::shared_ptr<FuncType> Scope::match_function(const std::string& name,
+                                                 const std::vector<std::shared_ptr<Type>>& args) {
     auto range = functions.equal_range(name);
-    std::map<FuncType, int> functions; 
-    for (auto i = range.first; i != range.second; ++i){
-        functions.insert({i->second, 0}); 
-    }
-    for (auto function : functions){
-        auto func_args = function.first.get_args();
-        if (func_args.size() != args.size()){
-            functions.erase(function.first);
-        }
-        bool match = true;
-        for (size_t j = 0; j < args.size(); ++j) {
-            if (typeid(args[j]) != typeid(func_args[j])) {
-                match = false; 
+    for (auto it = range.first; it != range.second; ++it) {
+        auto cand = it->second;
+        auto cand_args = cand->get_args();
+        if (cand_args.size() != args.size()) continue;
+        bool ok = true;
+        for (size_t i = 0; i < args.size(); ++i) {
+            if (!args[i]->equals(cand_args[i])) {
+                ok = false;
                 break;
             }
-            // TODO реализовать чтоб типы были конвертируемы сейчас ищет только идеальное совпадение типов
         }
-
-        if (match) {
-            return function.first; 
-        }
+        if (ok) return cand;
     }
-    if (prev_table.get() == nullptr){
-        throw; 
+    if (prev_table) {
+        return prev_table->match_function(name, args);
     }
-    
-    return prev_table->match_function(name, args);
+    throw std::runtime_error("Function not found: " + name);
 }
 
-void Scope::push_variable(const std::string& name, Type type) {
-    variables.insert({name, type});
+void Scope::push_variable(const std::string& name, std::shared_ptr<Type> type) {
+    variables.emplace(name, std::move(type));
 }
 
-void Scope::push_struct(const std::string& name, StructType type) {
-    structs.insert({name, type});
+void Scope::push_struct(const std::string& name, std::shared_ptr<Type> type) {
+    structs.emplace(name, std::move(type));
 }
 
-void Scope::push_func(const std::string& name, FuncType func) {
-    functions.insert({name, func});
+void Scope::push_func(const std::string& name, std::shared_ptr<FuncType> func) {
+    functions.emplace(name, std::move(func));
+}
+
+bool Scope::has_variable(const std::string& name) const {
+    return variables.find(name) != variables.end();
 }

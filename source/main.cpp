@@ -3,28 +3,35 @@
 #include "lexer.hpp"
 #include "parser.hpp"
 #include "ast.hpp"
+#include "analyzer.hpp"   
 #include "printer.hpp"
-
-
-
 
 int main() {
     try {
+
         Lexer lexer("example.txt");
-        std::vector<Token> tokens = lexer.tokenize();
-
-
+        auto tokens = lexer.tokenize();
         Lexer::print_tokens(tokens);
+        std::cout << "lexer end" << std::endl;
 
         Parser parser(tokens);
         auto translation_unit = parser.parse();
+        
+        std::cout << "parser end" << std::endl;
+
+        Analyzer analyzer;
+        analyzer.analyze(*translation_unit);
+
+        std::cout << "analyzer end" << std::endl;
+
 
         Printer printer;
         printer.visit(*translation_unit);
-    } catch (const std::exception& e) {
-        std::cerr << "Ошибка парсинга:" << e.what() << std::endl;
-        return 1;
-    }
 
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Semantic error: " << e.what() << std::endl;
+        return 2;
+  
     return 0;
+}
 }

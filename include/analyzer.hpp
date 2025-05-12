@@ -13,7 +13,7 @@ public:
 	void analyze(TranslationUnit&);
 public:
 	void visit(ASTNode&) override;
-	//void visit(TranslationUnit&) override;
+	void visit(TranslationUnit& unit) override;
 public:
 	void visit(Declaration::PtrDeclarator&) override;
 	void visit(Declaration::SimpleDeclarator&) override;
@@ -52,8 +52,8 @@ public:
 	void visit(SizeOfExpression&) override;
 
 
-	Type get_type(const std::string&);
-	static std::unordered_map<std::string, Type> default_types;
+	std::shared_ptr<Type> get_type(const std::string&);
+	static std::unordered_map<std::string, std::shared_ptr<Type>> default_types;
 	std::shared_ptr<Scope> scope;
-    Type current_type;
+    std::shared_ptr<Type> current_type;
 };

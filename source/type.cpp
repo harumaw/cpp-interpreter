@@ -1,4 +1,6 @@
+// type.cpp
 #include "type.hpp"
+#include <typeinfo>
 
 // ---------------------------
 // Фундаментальные типы
@@ -33,22 +35,72 @@ std::string StringType::get_value() const {
     return value;
 }
 
-FuncType::FuncType(Type return_type, std::vector<Type> args)
+// ---------------------------
+// equals() реализации для всех типов
+// ---------------------------
+bool VoidType::equals(const std::shared_ptr<Type>& other) const {
+    return dynamic_cast<VoidType*>(other.get()) != nullptr;
+}
+
+bool NullPtrType::equals(const std::shared_ptr<Type>& other) const {
+    return dynamic_cast<NullPtrType*>(other.get()) != nullptr;
+}
+
+bool BoolType::equals(const std::shared_ptr<Type>& other) const {
+    return dynamic_cast<BoolType*>(other.get()) != nullptr;
+}
+
+bool CharType::equals(const std::shared_ptr<Type>& other) const {
+    return dynamic_cast<CharType*>(other.get()) != nullptr;
+}
+
+bool IntegerType::equals(const std::shared_ptr<Type>& other) const {
+    return dynamic_cast<IntegerType*>(other.get()) != nullptr;
+}
+
+bool FloatType::equals(const std::shared_ptr<Type>& other) const {
+    return dynamic_cast<FloatType*>(other.get()) != nullptr;
+}
+
+bool StringType::equals(const std::shared_ptr<Type>& other) const {
+    return dynamic_cast<StringType*>(other.get()) != nullptr;
+}
+
+FuncType::FuncType(std::shared_ptr<Type> return_type, std::vector<std::shared_ptr<Type>> args)
     : returnable_type(std::move(return_type)), args(std::move(args)) {}
 
-Type FuncType::get_returnable_type() const {
+std::shared_ptr<Type> FuncType::get_returnable_type() const {
     return returnable_type;
 }
 
-std::vector<Type> FuncType::get_args() const {
+std::vector<std::shared_ptr<Type>> FuncType::get_args() const {
     return args;
 }
 
-StructType::StructType(const std::unordered_map<std::string, Type>& members)
+bool FuncType::equals(const std::shared_ptr<Type>& other) const {
+    auto o = dynamic_cast<FuncType*>(other.get());
+    if (!o || !returnable_type->equals(o->returnable_type) || args.size() != o->args.size()) return false;
+    for (size_t i = 0; i < args.size(); ++i) {
+        if (!args[i]->equals(o->args[i])) return false;
+    }
+    return true;
+}
+
+StructType::StructType(const std::unordered_map<std::string, std::shared_ptr<Type>>& members)
     : members(members) {}
 
-std::unordered_map<std::string, Type> StructType::get_members() const {
+std::unordered_map<std::string, std::shared_ptr<Type>> StructType::get_members() const {
     return members;
+}
+
+bool StructType::equals(const std::shared_ptr<Type>& other) const {
+    auto o = dynamic_cast<StructType*>(other.get());
+    if (!o || o->members.size() != members.size()) return false;
+    for (const auto& [key, val] : members) {
+        auto it = o->members.find(key);
+        if (it == o->members.end() || !val->equals(it->second)) return false;
+    }
+    return true;
 }
 
 PointerType::PointerType(std::shared_ptr<Type> base) : base(std::move(base)) {}
@@ -57,10 +109,20 @@ std::shared_ptr<Type> PointerType::get_base() const {
     return base;
 }
 
+bool PointerType::equals(const std::shared_ptr<Type>& other) const {
+    auto o = dynamic_cast<PointerType*>(other.get());
+    return o && base->equals(o->base);
+}
+
 LValueType::LValueType(std::shared_ptr<Type> ref_to) : ref_to(std::move(ref_to)) {}
 
 std::shared_ptr<Type> LValueType::get_referenced_type() const {
     return ref_to;
+}
+
+bool LValueType::equals(const std::shared_ptr<Type>& other) const {
+    auto o = dynamic_cast<LValueType*>(other.get());
+    return o && ref_to->equals(o->ref_to);
 }
 
 RValueType::RValueType(std::shared_ptr<Type> ref_to) : ref_to(std::move(ref_to)) {}
@@ -69,12 +131,23 @@ std::shared_ptr<Type> RValueType::get_referenced_type() const {
     return ref_to;
 }
 
-ArrayType::ArrayType(Type base, expression size) : base(std::move(base)), size(size) {}
+bool RValueType::equals(const std::shared_ptr<Type>& other) const {
+    auto o = dynamic_cast<RValueType*>(other.get());
+    return o && ref_to->equals(o->ref_to);
+}
 
-Type ArrayType::get_base_type() const {
-    return base; // Возвращаем объект Type
+ArrayType::ArrayType(std::shared_ptr<Type> base, expression size) : base(std::move(base)), size(size) {}
+
+std::shared_ptr<Type> ArrayType::get_base_type() const {
+    return base;
 }
 
 expression ArrayType::get_size() const {
     return size;
+}
+
+bool ArrayType::equals(const std::shared_ptr<Type>& other) const {
+    auto o = dynamic_cast<ArrayType*>(other.get());
+ 
+    return o && base->equals(o->base);
 }

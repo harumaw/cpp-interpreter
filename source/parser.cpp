@@ -150,6 +150,7 @@ var_declaration Parser::parse_var_declaration() { //maybe rework
         type = extract_token(TokenType::TYPE);
     } else if (check_token(TokenType::ID)) {
         type = extract_token(TokenType::ID);
+        
     } else {
         throw std::runtime_error("Var : expected type or identifier, but got " + tokens[offset].value);
     }
@@ -204,7 +205,7 @@ statement Parser::parse_statement() {
         return parse_loop_statement();
     } else if (check_token(TokenType::RETURN, TokenType::BREAK, TokenType::CONTINUE)) {
         return parse_jump_statement();
-    } else if (check_token(TokenType::TYPE)) {
+    } else if (is_type_specifier()) {
         return parse_declaration_statement();
     } else {
         return parse_expression_statement();
@@ -283,10 +284,9 @@ for_statement Parser::parse_for_statement() {
     }
     extract_token(TokenType::PARENTHESIS_RIGHT); 
 
-    extract_token(TokenType::BRACE_LEFT); // peresmotretb peredelatb chtobi v statement bilo
+   
     auto body = parse_statement();  
 
-    extract_token(TokenType::BRACE_RIGHT);
 
     return std::make_shared<ForStatement>(initialization, condition, increment, body);
 }
