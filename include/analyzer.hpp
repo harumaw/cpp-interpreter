@@ -4,6 +4,16 @@
 #include "visitor.hpp"
 #include "scope.hpp"
 #include "type.hpp"
+#include <iostream>
+
+
+
+#define VISIT_BODY_BEGIN try {
+	#define VISIT_BODY_END                         \
+		} catch (const SemanticException& e) {     \
+		  errors.push_back(e.what());              \
+		}
+
 
 
 
@@ -11,10 +21,14 @@ class Analyzer : public Visitor{
 public:
 	Analyzer();
 	void analyze(TranslationUnit&);
+
 	std::vector<std::string> errors;
-	const std::vector<std::string>& get_errors() const{
-		return errors;
-	}
+	const std::vector<std::string>& getErrors() const { return errors; }
+    void printErrors() const {
+        for (auto& e : errors) {
+            std::cerr << e << "\n";
+        }
+    }
 
 public:
 	void visit(ASTNode&) override;
@@ -62,4 +76,6 @@ public:
 	static std::unordered_map<std::string, std::shared_ptr<Type>> default_types;
 	std::shared_ptr<Scope> scope;
     std::shared_ptr<Type> current_type;
+
+
 };
