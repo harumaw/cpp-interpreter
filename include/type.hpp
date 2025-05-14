@@ -23,7 +23,6 @@ struct Type {
     virtual ~Type() = default;
     virtual bool equals(const std::shared_ptr<Type>& other) const = 0;
 
-
 };
 
 // ---------------------------

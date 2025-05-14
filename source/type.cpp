@@ -151,3 +151,4 @@ bool ArrayType::equals(const std::shared_ptr<Type>& other) const {
  
     return o && base->equals(o->base);
 }
+

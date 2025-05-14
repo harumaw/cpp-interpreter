@@ -2,6 +2,29 @@
 #include "token.hpp"
 #include "semantic_exception.hpp"
 
+int getTypeRank(const Type& type) {
+    if (dynamic_cast<const FloatType*>(&type))    return  3;
+    if (dynamic_cast<const IntegerType*>(&type))  return  2;
+    if (dynamic_cast<const CharType*>(&type))     return  1;
+    if (dynamic_cast<const BoolType*>(&type))     return 0;
+    return -2;
+}
+
+
+std::shared_ptr<Type> compareRank(const std::shared_ptr<Type>& lhs, const std::shared_ptr<Type>& rhs) {
+    int rl = getTypeRank(*lhs);
+    int rr = getTypeRank(*rhs);
+
+    if (rl > rr) {
+        return lhs;
+    } else if (rl < rr) {
+        return rhs;
+    } else {
+        return lhs;
+    }
+
+}
+
 
 
 std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types = {
@@ -222,16 +245,20 @@ void Analyzer::visit(ContinueStatement& /*node*/) {}
 
 void Analyzer::visit(BinaryOperation& node) {
     VISIT_BODY_BEGIN
+    // арифметическая операция: промоция типов по рангу
     node.lhs->accept(*this);
     auto left = current_type;
     node.rhs->accept(*this);
     auto right = current_type;
-    if (!left->equals(right) || dynamic_cast<Arithmetic*>(left.get()) == nullptr)
+    int rl = getTypeRank(*left);
+    int rr = getTypeRank(*right);
+    if (rl < 0 || rr < 0) {
         throw SemanticException("type mismatch in binary operation");
-    current_type = left;
+    }
+    // выбираем более широкий тип
+    current_type = compareRank(left, right);
     VISIT_BODY_END
 }
-
 void Analyzer::visit(PrefixExpression& node) {
     VISIT_BODY_BEGIN
     node.base->accept(*this);
@@ -350,13 +377,17 @@ void Analyzer::visit(ParenthesizedExpression& node) {
 
 void Analyzer::visit(TernaryExpression& node) {
     VISIT_BODY_BEGIN
-    node.condition->accept(*this);
-    node.true_expr->accept(*this);
-    auto t1 = current_type;
-    node.false_expr->accept(*this);
-    if (!t1->equals(current_type))
-        throw SemanticException("ternary expression types do not match");
-    current_type = t1;
+      node.condition->accept(*this);
+      node.true_expr->accept(*this);
+      auto left = current_type;
+      node.false_expr->accept(*this);
+      auto right = current_type;
+      int rl = getTypeRank(*left);
+      int rr = getTypeRank(*right);
+      if (rl < 0 || rr < 0) {
+          throw SemanticException("ternary expression types do not match");
+      }
+      current_type = compareRank(left, right);
     VISIT_BODY_END
 }
 
@@ -414,3 +445,5 @@ void Analyzer::visit(NameSpaceAcceptExpression& node) { // nado rework
     node.base->accept(*this);
     VISIT_BODY_END
 }
+
+
