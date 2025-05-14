@@ -42,6 +42,7 @@ public:
 	void visit(FuncDeclaration&) override;
 	void visit(StructDeclaration&) override;
 	void visit(ArrayDeclaration&) override;
+	void visit(NameSpaceDeclaration&) override;
 public:
 	void visit(CompoundStatement&) override;
 	void visit(DeclarationStatement&) override;

@@ -8,7 +8,8 @@ std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types =
     {"int",    std::make_shared<IntegerType>()},
     {"float",  std::make_shared<FloatType>()},
     {"char",   std::make_shared<CharType>()},
-    {"bool",   std::make_shared<BoolType>()}
+    {"bool",   std::make_shared<BoolType>()},
+    {"void", std::make_shared<VoidType>()}
 };
 
 Analyzer::Analyzer()
@@ -156,6 +157,15 @@ void Analyzer::visit(CompoundStatement& node) {
     scope = scope->create_new_table(scope, std::make_shared<CompoundStatement>(node));
     for (auto& s : node.statements)
         s->accept(*this);
+    scope = scope->get_prev_table();
+    VISIT_BODY_END
+}
+
+void Analyzer::visit(NameSpaceDeclaration& node) {
+    VISIT_BODY_BEGIN
+    scope = scope->create_new_table(scope, std::make_shared<NameSpaceDeclaration>(node));
+    for (auto& decl : node.declarations)
+        decl->accept(*this);
     scope = scope->get_prev_table();
     VISIT_BODY_END
 }

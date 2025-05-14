@@ -70,3 +70,9 @@ void ArrayDeclaration::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
 
+NameSpaceDeclaration::NameSpaceDeclaration(const std::string& name,
+								const std::vector<std::shared_ptr<Declaration>>& declarations)
+	: name(name), declarations(declarations) {}
+void NameSpaceDeclaration::accept(Visitor& visitor) {
+	visitor.visit(*this);
+}

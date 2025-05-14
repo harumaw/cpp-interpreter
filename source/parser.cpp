@@ -25,23 +25,20 @@ std::shared_ptr<TranslationUnit> Parser::parse() {
  
 
 bool Parser::is_type_specifier() {
-    if (check_token(TokenType::TYPE) || check_token(TokenType::STRUCT)) {
+    if (check_token(TokenType::NAMESPACE)) return true;
+    if (check_token(TokenType::TYPE)      ||
+        check_token(TokenType::STRUCT))   return true;
+    if (check_token(TokenType::ID) &&
+        peek_token(1).type == TokenType::ID)
         return true;
-    }
-    if (check_token(TokenType::ID)) {
-        if (peek_token(1).type == TokenType::ID) {
-            return true;
-            }
-    }
-    // int int; 
-    // A a; - tozhe na etape parsera(таблицу символов реализовать)
     return false;
 }
 
-
-
 declaration Parser::parse_declaration() {
-    if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
+    if(match_token(TokenType::NAMESPACE)){
+        return parse_namespace_declaration();
+    }
+    else if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
         return parse_function_declaration();
     }
     else if(match_pattern(TokenType::TYPE, TokenType::ID, TokenType::INDEX_LEFT)){
@@ -57,6 +54,20 @@ declaration Parser::parse_declaration() {
     else {
             throw std::runtime_error("Declaration : Unexpected token " + tokens[offset].value);
     }
+}
+
+name_space_declaration Parser::parse_namespace_declaration() {
+
+    auto name = extract_token(TokenType::ID);
+    extract_token(TokenType::BRACE_LEFT);
+
+    std::vector<std::shared_ptr<Declaration>> decls;
+
+    while (!match_token(TokenType::BRACE_RIGHT)) {
+        decls.push_back(parse_declaration());
+    }
+
+    return std::make_shared<NameSpaceDeclaration>(name, decls);
 }
 
 
@@ -291,7 +302,7 @@ for_statement Parser::parse_for_statement() {
     std::shared_ptr<ASTNode> initialization;
     if (!check_token(TokenType::SEMICOLON)) {  
         if (check_token(TokenType::TYPE)) {  
-            initialization = parse_var_declaration(); 
+            initialization = parse_declaration(); 
         } else {
             initialization = parse_expression_statement();  
         }

@@ -78,7 +78,7 @@ struct StructDeclaration: public Declaration {
 
 };
 
-struct ArrayDeclaration: public Declaration{ // v var declaration dobavit v array declarator
+struct ArrayDeclaration: public Declaration { 
  	std::string type;
 	std::string name;
 	std::shared_ptr<Expression> size;
@@ -90,6 +90,17 @@ struct ArrayDeclaration: public Declaration{ // v var declaration dobavit v arra
 
     void accept(Visitor &visitor) override;
 };
+
+struct NameSpaceDeclaration : public Declaration{
+	std::string name;
+	std::vector<std::shared_ptr<Declaration>> declarations;
+
+	NameSpaceDeclaration(const std::string& name, const std::vector<std::shared_ptr<Declaration>>& declarations);
+
+	void accept(Visitor&) override;
+};
+
+
 
 
 
@@ -103,3 +114,4 @@ using init_declarator = std::shared_ptr<Declaration::InitDeclarator>;
 using declarator = std::shared_ptr<Declaration::Declarator>;
 using struct_declaration = std::shared_ptr<StructDeclaration>;
 using array_declaration = std::shared_ptr<ArrayDeclaration>;
+using name_space_declaration = std::shared_ptr<NameSpaceDeclaration>;

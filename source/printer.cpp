@@ -445,3 +445,13 @@ void Printer::visit(DoWhileStatement& node) {
 
     --indent_level;
 }
+
+void Printer::visit(NameSpaceDeclaration& node) {
+    indent();
+    std::cout << "Namespace: " << node.name << "\n";
+    ++indent_level;
+    for (auto& decl : node.declarations) {
+        decl->accept(*this);
+    }
+    --indent_level;
+}

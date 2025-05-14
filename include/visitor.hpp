@@ -20,6 +20,7 @@ public:
 	virtual void visit(FuncDeclaration&) = 0;
 	virtual void visit(StructDeclaration&) = 0;	
 	virtual void visit(ArrayDeclaration&) = 0;
+	virtual void visit(NameSpaceDeclaration&) = 0;
 public:
 	virtual void visit(CompoundStatement&) = 0;
 	virtual void visit(DeclarationStatement&) = 0;

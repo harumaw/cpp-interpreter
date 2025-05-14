@@ -32,6 +32,7 @@ public:
 	array_declaration parse_array_declaration();
 	init_declarator parse_init_declarator();
 	declarator parse_declarator();
+	name_space_declaration parse_namespace_declaration();
 public:
 	statement parse_statement();
 	compound_statement parse_compound_statement();

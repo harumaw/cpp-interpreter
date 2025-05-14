@@ -88,6 +88,7 @@ enum class TokenType {
         FALSE,
         TRUE,
         RETURN,
+        NAMESPACE,
     
       
         END
