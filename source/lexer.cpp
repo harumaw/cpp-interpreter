@@ -22,8 +22,39 @@ std::vector<Token> Lexer::tokenize() {
     while (std::getline(file, line)) {
         offset = 0;
         while (offset < line.size()) {
-            char current = line[offset];
 
+             if (std::isspace(static_cast<unsigned char>(line[offset]))) {
+                ++offset;
+                continue;
+            }
+            if (line[offset] == '/' 
+                && offset + 1 < line.size() 
+                && line[offset + 1] == '/') 
+            {
+                break;
+            }
+            if (line[offset] == '/' 
+                && offset + 1 < line.size() 
+                && line[offset + 1] == '*') 
+            {
+                offset += 2; 
+                bool closed = false;
+                while (!closed) {
+                    auto pos = line.find("*/", offset);
+                    if (pos != std::string::npos) {
+                        offset = pos + 2;
+                        closed = true;
+                    } else if (std::getline(file, line)) {
+                        offset = 0;
+                    } else {
+                        closed = true;
+                        offset = line.size();
+                    }
+                }
+                continue; 
+            }
+
+            char current = line[offset];
             if (std::isdigit(current) || current == '"' || current == '\'' || 
                 (current == '-' && offset + 1 < line.size() && std::isdigit(line[offset + 1]))) {
                 tokens.push_back(extract_literal(line));
