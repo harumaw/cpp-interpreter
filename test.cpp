@@ -1,16 +1,6 @@
-struct  A
-{
-  int a;
-  struct B{
-    int v;
-    int c;
-  } b; // Add member 'b' of type 'B'
-};
+#include <iostream>
 
-A c;
-A::B b;
-
-int main() {
-    c.b.v = 4;
-    return;
+int main(){
+  int x = 'c';
+  std::cout << x << std::endl;
 }

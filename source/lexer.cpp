@@ -270,6 +270,7 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TokenType::RETURN: return "RETURN";
         case TokenType::END: return "END";
         case TokenType::NAMESPACE: return "NAMESPACE";
+        case TokenType::SCOPE: return "SCOPE";
 
         default: return "UNKNOWN";
     }
@@ -283,6 +284,7 @@ void Lexer::print_tokens(const std::vector<Token>& tokens) {
 
 std::set<std::string> Lexer::types = {"int", "float", "double", "char", "bool", "size_t", "void"};
 std::unordered_map<std::string, TokenType> Lexer::operators = {
+    {"::",TokenType::SCOPE},
     {"+", TokenType::PLUS},
     {"-", TokenType::MINUS},
     {"*", TokenType::MULTIPLY},
@@ -320,7 +322,7 @@ std::unordered_map<std::string, TokenType> Lexer::operators = {
     {"--", TokenType::DECREMENT},
     {".", TokenType::DOT},
     {"->", TokenType::ARROW},
-    {"::", TokenType::SCOPE}
+    {":", TokenType::COLON}
 };
 std::unordered_map<std::string, TokenType> Lexer::punctuators = {
     {",", TokenType::COMMA},

@@ -564,28 +564,43 @@ expression Parser::parse_postfix_expression() {
 
 
 
-expression Parser::parse_base(){
-    if(check_token(TokenType::LITERAL_CHAR)){
+expression Parser::parse_base() {
+    // 1) Группирующие скобки
+    if (match_token(TokenType::PARENTHESIS_LEFT)) {
+        auto inner = parse_expression();
+        extract_token(TokenType::PARENTHESIS_RIGHT);
+        return inner;
+    }
+
+    // 2) Литеры
+    if (check_token(TokenType::LITERAL_CHAR)) {
         return std::make_shared<CharLiteral>(extract_token(TokenType::LITERAL_CHAR));
     }
-    else if (check_token(TokenType::ID)){
-        return std::make_shared<IdentifierExpression>(extract_token(TokenType::ID));
-    }
-    else if(check_token(TokenType::LITERAL_NUM)){
-        std::string value = extract_token(TokenType::LITERAL_NUM);
-        if (value.find('.') != std::string::npos) { // v budushem ne nuzhno
+    if (check_token(TokenType::LITERAL_NUM)) {
+        auto value = extract_token(TokenType::LITERAL_NUM);
+        if (value.find('.') != std::string::npos)
             return std::make_shared<FloatLiteral>(value);
-        } else {
+        else
             return std::make_shared<IntLiteral>(value);
-        }
     }
-    else if(check_token(TokenType::TRUE, TokenType::FALSE)){
+    if (check_token(TokenType::LITERAL_STRING)) {
+        return std::make_shared<StringLiteral>(extract_token(TokenType::LITERAL_STRING));
+    }
+    if (check_token(TokenType::TRUE, TokenType::FALSE)) {
         auto val = tokens[offset++].value;
-        
         return std::make_shared<BoolLiteral>(val);
     }
-    else if(check_token(TokenType::LITERAL_STRING)){
-        return std::make_shared<StringLiteral>(extract_token(TokenType::LITERAL_STRING));
+
+    // 3) Идентификатор (или квалифицированный через ::)
+    if (check_token(TokenType::ID)) {
+        // читаем первое имя
+        std::string name = extract_token(TokenType::ID);
+        // доклеиваем любые ::части
+        while (match_token(TokenType::SCOPE)) {
+            name += "::" + extract_token(TokenType::ID);
+        }
+        std::cout << name << std::endl;
+        return std::make_shared<IdentifierExpression>(name);
     }
 
     throw std::runtime_error("parse base error " + tokens[offset].value);

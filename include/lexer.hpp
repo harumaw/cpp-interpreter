@@ -25,7 +25,7 @@ private:
     static std::unordered_map<std::string, TokenType> punctuators;
     static std::unordered_map<std::string, TokenType> keywords;
     static std::string spec_symbols;
-    std::string operator_char = "+-*/%^&|=<>!~?";
+    std::string operator_char = "+-*/%^&|=<>!~?:";
     
     Token extract_literal(const std::string& line);
     Token extract_type(const std::string& line);
