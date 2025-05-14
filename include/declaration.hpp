@@ -82,7 +82,11 @@ struct ArrayDeclaration: public Declaration{ // v var declaration dobavit v arra
  	std::string type;
 	std::string name;
 	std::shared_ptr<Expression> size;
-	ArrayDeclaration(const std::string& type, const std::string& name, const std::shared_ptr<Expression>& size);
+	std::vector<std::shared_ptr<Expression>> initializer_list;
+
+
+	ArrayDeclaration(const std::string& type, const std::string& name, const std::shared_ptr<Expression>& size, 
+					const std::vector<std::shared_ptr<Expression>>& initializer_list);
 
     void accept(Visitor &visitor) override;
 };

@@ -62,8 +62,9 @@ void StructDeclaration::accept(Visitor& visitor) {
 
 ArrayDeclaration::ArrayDeclaration(const std::string& type,
                                    const std::string& name,
-                                   const std::shared_ptr<Expression>& size)
-	: type(type), name(name), size(size) {}
+                                   const std::shared_ptr<Expression>& size,
+								const std::vector<std::shared_ptr<Expression>>& initializer_list)
+	: type(type), name(name), size(size), initializer_list(initializer_list) {}
 
 void ArrayDeclaration::accept(Visitor& visitor) {
 	visitor.visit(*this);

@@ -82,9 +82,9 @@ struct ContinueStatement: public JumpStatement {
 };
 
 struct DeclarationStatement: public Statement {
-	std::shared_ptr<VarDeclaration> declaration;
+	std::shared_ptr<Declaration> declaration;
 
-	DeclarationStatement(const std::shared_ptr<VarDeclaration>&);
+	DeclarationStatement(const std::shared_ptr<Declaration>&);
 	void accept(Visitor&) override;
 };
 

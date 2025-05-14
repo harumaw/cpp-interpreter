@@ -119,22 +119,36 @@ func_declaration Parser::parse_function_declaration() {
 }
 
 
-array_declaration Parser::parse_array_declaration(){ // peredelatb chast var declaration
+array_declaration Parser::parse_array_declaration() {
     auto type = extract_token(TokenType::TYPE);
-    auto declarator = extract_token(TokenType::ID);
-    std::shared_ptr<Expression> size;
+    auto name = extract_token(TokenType::ID);
 
-    if (match_token(TokenType::INDEX_LEFT)) {
-        //std::cout << "Array declaration: " << declarator << std::endl;
+    extract_token(TokenType::INDEX_LEFT);
+
+   
+    std::shared_ptr<Expression> size = nullptr;
+    if (!match_token(TokenType::INDEX_RIGHT)) {
         size = parse_expression();
         extract_token(TokenType::INDEX_RIGHT);
-    } else {
-        throw std::runtime_error("Array declaration: Missing array size");
+    }
+
+    
+    std::vector<std::shared_ptr<Expression>> init_list;
+    if (match_token(TokenType::ASSIGN)) {
+        extract_token(TokenType::BRACE_LEFT);
+
+        if (!match_token(TokenType::BRACE_RIGHT)) {
+            do {
+                init_list.push_back(parse_expression());
+            } while (match_token(TokenType::COMMA));
+            extract_token(TokenType::BRACE_RIGHT);
+        }
     }
 
     extract_token(TokenType::SEMICOLON);
-    return std::make_shared<ArrayDeclaration>(type, declarator, size);
+    return std::make_shared<ArrayDeclaration>(type, name, size, init_list);
 }
+
 parameter_declaration Parser::parse_parameter_declaration() {
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_init_declarator();
@@ -341,7 +355,7 @@ return_statement Parser::parse_return_statement() {
 }
 
 declaration_statement Parser::parse_declaration_statement() {
-    auto declaration = parse_var_declaration();
+    auto declaration = parse_declaration();
     return std::make_shared<DeclarationStatement>(declaration);
 }
 

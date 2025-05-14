@@ -338,12 +338,30 @@ void Printer::visit(ArrayDeclaration &node) {
     indent();
     std::cout << "Type: " << node.type << "\n";
 
+
     indent();
     std::cout << "Name: " << node.name << "\n";
 
+
     indent();
     std::cout << "Size: ";
-    node.size->accept(*this); 
+    if (node.size) {
+        node.size->accept(*this);
+    } else {
+        std::cout << "<unspecified>\n";
+    }
+
+    if (!node.initializer_list.empty()) {
+        indent();
+        std::cout << "Initializers:\n";
+        ++indent_level;
+        for (size_t i = 0; i < node.initializer_list.size(); ++i) {
+            indent();
+            std::cout << "[" << i << "]: ";
+            node.initializer_list[i]->accept(*this);
+        }
+        --indent_level;
+    }
 
     --indent_level;
 }

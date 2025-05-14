@@ -25,10 +25,11 @@ int main() {
         if (!errors.empty()) {
             std::cerr << "Semantic errors found (" << errors.size() << "):\n";
             for (auto& msg : errors) {
-                std::cerr << "  - " << msg << "\n";
+                std::cerr << "  --> " << msg << "\n";
             }
             return 2;  
         }
+
       
         Printer printer;
         printer.visit(*translation_unit);

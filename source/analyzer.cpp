@@ -7,7 +7,6 @@
 std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types = {
     {"int",    std::make_shared<IntegerType>()},
     {"float",  std::make_shared<FloatType>()},
-    {"double", std::make_shared<FloatType>()},
     {"char",   std::make_shared<CharType>()},
     {"bool",   std::make_shared<BoolType>()}
 };
@@ -384,7 +383,6 @@ void Analyzer::visit(SizeOfExpression& node) {
 }
 
 std::shared_ptr<Type> Analyzer::get_type(const std::string& name) {
-    VISIT_BODY_BEGIN
     try {
         return scope->match_struct(name);
     } catch (...) {
@@ -392,7 +390,6 @@ std::shared_ptr<Type> Analyzer::get_type(const std::string& name) {
         if (it != default_types.end()) return it->second;
     }
     throw SemanticException("unknown type: " + name);
-    VISIT_BODY_END
 }
 
 void Analyzer::visit(DoWhileStatement& node) {

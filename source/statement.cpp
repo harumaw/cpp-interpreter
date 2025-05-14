@@ -53,7 +53,7 @@ void ContinueStatement::accept(Visitor& visitor) {
 }
 
 DeclarationStatement::DeclarationStatement(
-	const std::shared_ptr<VarDeclaration>& declaration
+	const std::shared_ptr<Declaration>& declaration
 	) : declaration(declaration) {}
 
 void DeclarationStatement::accept(Visitor& visitor) {
