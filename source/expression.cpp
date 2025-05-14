@@ -142,3 +142,11 @@ void SizeOfExpression::accept(Visitor& visitor){
 	visitor.visit(*this);
 }
 
+
+NameSpaceAcceptExpression::NameSpaceAcceptExpression(
+	std::shared_ptr<Expression> base,
+	const std::string& name
+) : base(base), name(name) {}
+void NameSpaceAcceptExpression::accept(Visitor& visitor){
+	visitor.visit(*this);
+}

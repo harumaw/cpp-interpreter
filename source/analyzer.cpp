@@ -408,3 +408,9 @@ void Analyzer::visit(DoWhileStatement& node) {
     node.condition->accept(*this);
     VISIT_BODY_END
 }
+
+void Analyzer::visit(NameSpaceAcceptExpression& node) { // nado rework
+    VISIT_BODY_BEGIN
+    node.base->accept(*this);
+    VISIT_BODY_END
+}

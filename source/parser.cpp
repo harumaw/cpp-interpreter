@@ -518,7 +518,7 @@ expression Parser::parse_postfix_expression() {
     auto left = parse_base();
 
     while (check_token(TokenType::INCREMENT, TokenType::DECREMENT, TokenType::INDEX_LEFT, 
-                       TokenType::PARENTHESIS_LEFT, TokenType::DOT)) {
+                       TokenType::PARENTHESIS_LEFT, TokenType::DOT, TokenType::SCOPE)) {
         
         if (match_token(TokenType::INCREMENT)) {
             left = std::make_shared<PostfixIncrementExpression>(left);
@@ -552,6 +552,10 @@ expression Parser::parse_postfix_expression() {
         if (match_token(TokenType::DOT)) {
             auto member = extract_token(TokenType::ID);
             left = std::make_shared<StructMemberAccessExpression>(left, member);
+        }
+        if(match_token(TokenType::SCOPE)){
+            auto member = extract_token(TokenType::ID);
+            left = std::make_shared<NameSpaceAcceptExpression>(left, member);
         }
     }
 

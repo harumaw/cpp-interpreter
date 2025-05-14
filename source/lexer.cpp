@@ -319,7 +319,8 @@ std::unordered_map<std::string, TokenType> Lexer::operators = {
     {"++", TokenType::INCREMENT},
     {"--", TokenType::DECREMENT},
     {".", TokenType::DOT},
-    {"->", TokenType::ARROW}
+    {"->", TokenType::ARROW},
+    {"::", TokenType::SCOPE}
 };
 std::unordered_map<std::string, TokenType> Lexer::punctuators = {
     {",", TokenType::COMMA},

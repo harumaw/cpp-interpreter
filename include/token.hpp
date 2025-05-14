@@ -60,6 +60,7 @@ enum class TokenType {
         INDEX_RIGHT,
         DOT,
         ARROW,
+        SCOPE,
     
 
         COMMA,

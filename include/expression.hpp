@@ -169,6 +169,15 @@ struct SizeOfExpression : public PostfixExpression{
 
 };
 
+struct NameSpaceAcceptExpression : public PostfixExpression{
+	std::shared_ptr<Expression> base;
+	std::string name;
+
+	NameSpaceAcceptExpression(std::shared_ptr<Expression>, const std::string&);
+
+	void accept(Visitor&) override;
+};
+
 
 using expression = std::shared_ptr<Expression>;
 using binary_expression = std::shared_ptr<BinaryExpression>;

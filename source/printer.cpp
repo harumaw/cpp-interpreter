@@ -455,3 +455,19 @@ void Printer::visit(NameSpaceDeclaration& node) {
     }
     --indent_level;
 }
+
+void Printer::visit(NameSpaceAcceptExpression& node) {
+    indent();
+    std::cout << "NameSpaceAcceptExpression:\n";
+    
+    ++indent_level;
+    
+    indent();
+    std::cout << "Base: ";
+    node.base->accept(*this); 
+    
+    indent();
+    std::cout << "Name: " << node.name << "\n"; 
+    
+    --indent_level;
+}

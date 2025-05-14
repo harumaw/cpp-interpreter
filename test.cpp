@@ -1,11 +1,16 @@
 struct  A
 {
-  int a = 4;
+  int a;
+  struct B{
+    int v;
+    int c;
+  } b; // Add member 'b' of type 'B'
 };
 
-A a;
+A c;
+A::B b;
 
 int main() {
-    a.a = 4;
+    c.b.v = 4;
     return;
 }

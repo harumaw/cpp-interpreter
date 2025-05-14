@@ -71,7 +71,7 @@ public:
 	void visit(ParenthesizedExpression&) override;
 	void visit(TernaryExpression&) override;
 	void visit(SizeOfExpression&) override;
-
+	void visit(NameSpaceAcceptExpression&) override;
 
 	std::shared_ptr<Type> get_type(const std::string&);
 	static std::unordered_map<std::string, std::shared_ptr<Type>> default_types;

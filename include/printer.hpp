@@ -45,4 +45,5 @@ public:
 	void visit(ParenthesizedExpression&) override;
 	void visit(TernaryExpression&) override;
 	void visit(SizeOfExpression&) override;
+	void visit(NameSpaceAcceptExpression&) override;
 };
