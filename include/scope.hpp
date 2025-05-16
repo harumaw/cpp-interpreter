@@ -15,11 +15,14 @@ public:
                                             std::shared_ptr<ASTNode> node);
     std::shared_ptr<Scope> get_prev_table() const;
 
+    std::shared_ptr<Scope> match_namespace(const std::string& name);
     std::shared_ptr<Type> match_variable(const std::string& name);
     std::shared_ptr<Type> match_struct(const std::string& name);
     std::shared_ptr<FuncType> match_function(const std::string& name,
                                              const std::vector<std::shared_ptr<Type>>& args);
 
+
+    void push_namespace(const std::string& name, std::shared_ptr<Scope> scope);
     void push_variable(const std::string& name, std::shared_ptr<Type> type);
     void push_struct(const std::string& name, std::shared_ptr<Type> type);
     void push_func(const std::string& name, std::shared_ptr<FuncType> func);
@@ -31,5 +34,6 @@ private:
 
     std::unordered_map<std::string, std::shared_ptr<Type>> variables;
     std::unordered_map<std::string, std::shared_ptr<Type>> structs;
+    std::unordered_map<std::string, std::shared_ptr<Scope>> namespaces;
     std::multimap<std::string, std::shared_ptr<FuncType>> functions;
 };

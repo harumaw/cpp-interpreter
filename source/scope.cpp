@@ -20,6 +20,15 @@ std::shared_ptr<Type> Scope::match_variable(const std::string& name) {
     if (prev_table) {
         return prev_table->match_variable(name);
     }
+
+    for (auto& [ns_name, ns_scope] : namespaces) {
+        try {
+            return ns_scope->match_variable(name);
+        } catch (...) {
+        }
+    }
+
+
     throw std::runtime_error("Variable not found: " + name);
 }
 
@@ -56,6 +65,20 @@ std::shared_ptr<FuncType> Scope::match_function(const std::string& name,
     throw std::runtime_error("Function not found: " + name);
 }
 
+std::shared_ptr<Scope> Scope::match_namespace(const std::string& name) {
+    auto it = namespaces.find(name);
+    if (it != namespaces.end()) {
+        return it->second;
+    }
+    if (prev_table) {
+        return prev_table->match_namespace(name);
+    }
+    throw std::runtime_error("Namespace not found: " + name);
+}
+
+void Scope::push_namespace(const std::string& name, std::shared_ptr<Scope> scope) {
+    namespaces.emplace(name, std::move(scope));
+}
 void Scope::push_variable(const std::string& name, std::shared_ptr<Type> type) {
     variables.emplace(name, std::move(type));
 }

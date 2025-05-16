@@ -565,14 +565,12 @@ expression Parser::parse_postfix_expression() {
 
 
 expression Parser::parse_base() {
-    // 1) Группирующие скобки
     if (match_token(TokenType::PARENTHESIS_LEFT)) {
         auto inner = parse_expression();
         extract_token(TokenType::PARENTHESIS_RIGHT);
         return inner;
     }
 
-    // 2) Литеры
     if (check_token(TokenType::LITERAL_CHAR)) {
         return std::make_shared<CharLiteral>(extract_token(TokenType::LITERAL_CHAR));
     }
@@ -591,17 +589,12 @@ expression Parser::parse_base() {
         return std::make_shared<BoolLiteral>(val);
     }
 
-    // 3) Идентификатор (или квалифицированный через ::)
     if (check_token(TokenType::ID)) {
-        // читаем первое имя
-        std::string name = extract_token(TokenType::ID);
-        // доклеиваем любые ::части
-        while (match_token(TokenType::SCOPE)) {
-            name += "::" + extract_token(TokenType::ID);
-        }
-        std::cout << name << std::endl;
+        auto name = extract_token(TokenType::ID);
         return std::make_shared<IdentifierExpression>(name);
     }
+
+
 
     throw std::runtime_error("parse base error " + tokens[offset].value);
 }

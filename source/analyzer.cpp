@@ -186,10 +186,18 @@ void Analyzer::visit(CompoundStatement& node) {
 
 void Analyzer::visit(NameSpaceDeclaration& node) {
     VISIT_BODY_BEGIN
-    scope = scope->create_new_table(scope, std::make_shared<NameSpaceDeclaration>(node));
-    for (auto& decl : node.declarations)
+    // 1. Создаём новый scope для namespace (без ASTNode)
+    auto ns_scope = scope->create_new_table(scope, nullptr);
+    // 2. Регистрируем namespace в текущем scope
+    scope->push_namespace(node.name, ns_scope);
+    // 3. Переходим в новый scope и анализируем вложенные объявления
+    auto saved_scope = scope;
+    scope = ns_scope;
+    for (auto& decl : node.declarations) {
         decl->accept(*this);
-    scope = scope->get_prev_table();
+    }
+    // 4. Возвращаемся в родительский scope
+    scope = saved_scope;
     VISIT_BODY_END
 }
 
@@ -440,10 +448,26 @@ void Analyzer::visit(DoWhileStatement& node) {
     VISIT_BODY_END
 }
 
-void Analyzer::visit(NameSpaceAcceptExpression& node) { // nado rework
+
+void Analyzer::visit(NameSpaceAcceptExpression& node) {
     VISIT_BODY_BEGIN
-    node.base->accept(*this);
+
+    // 1) base должен быть именно идентификатором namespace
+    auto ns_ident = dynamic_cast<IdentifierExpression*>(node.base.get());
+    if (!ns_ident) {
+        throw SemanticException("left side of '::' must be a namespace name");
+    }
+
+    auto ns_scope = scope->match_namespace(ns_ident->name);
+
+    // 3) переключаемся на него
+    auto saved_scope = scope;
+    scope = ns_scope;
+
+    current_type = scope->match_variable(node.name);
+
+    // 5) восстанавливаем исходный scope
+    scope = saved_scope;
+
     VISIT_BODY_END
 }
-
-
