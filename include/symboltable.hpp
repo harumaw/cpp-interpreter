@@ -15,12 +15,12 @@
 struct Value {
     enum class Type { Integer, Float, Char, Bool, Void } type;
     int64_t    i;
-    double     f;
+    float     f;
     char16_t   c;
     bool       b;
 
     static Value makeInt(int64_t v)   { Value x {Type::Integer, v, 0, 0, false}; return x; }
-    static Value makeFloat(double v)  { Value x {Type::Float,    0, v, 0, false}; return x; }
+    static Value makeFloat(float v)  { Value x {Type::Float,    0, v, 0, false}; return x; }
     static Value makeChar(char16_t v) { Value x {Type::Char,     0, 0, v,  false}; return x; }
     static Value makeBool(bool v)     { Value x {Type::Bool,     0, 0, 0,  v   }; return x; }
     static Value makeVoid()           { Value x {Type::Void,     0, 0, 0,  false}; return x; }
