@@ -7,19 +7,7 @@
 
 #include "expression.hpp"
 
-enum class TypeRank{
-    Void = 0,  
-    NullPtr = 1,  
-    Bool = 2,  
-    Char = 3,  
-    Int = 4,  
-    Float = 5,  
-    Double = 6,  
-    String = 7,  
-
-};
-
-struct Type {
+struct Type {   
     virtual ~Type() = default;
     virtual bool equals(const std::shared_ptr<Type>& other) const = 0;
 
@@ -41,12 +29,12 @@ struct NullPtrType : Fundamental {
 struct Arithmetic : Fundamental {
     explicit Arithmetic(std::any value);
     std::any get_any_value() const;
-
 protected:
     std::any value;
 };
-
-struct Integral : Arithmetic {
+    
+    
+    struct Integral : Arithmetic {
     explicit Integral(std::any value);
 };
 

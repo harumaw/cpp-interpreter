@@ -8,7 +8,7 @@
 #include "type.hpp"
 #include "ast.hpp"
 
-class Scope : public std::enable_shared_from_this<Scope> {
+class Scope {
 public:
     Scope(std::shared_ptr<Scope> prev_scope, std::shared_ptr<ASTNode> node);
     std::shared_ptr<Scope> create_new_table(std::shared_ptr<Scope> prev_scope,
@@ -27,6 +27,7 @@ public:
     void push_struct(const std::string& name, std::shared_ptr<Type> type);
     void push_func(const std::string& name, std::shared_ptr<FuncType> func);
     bool has_variable(const std::string& name) const;
+
 
 private:
     std::shared_ptr<Scope> prev_table;

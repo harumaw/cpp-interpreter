@@ -23,8 +23,10 @@ public:
 	void analyze(TranslationUnit&);
 
 	std::vector<std::string> errors;
+	
 	const std::vector<std::string>& getErrors() const { return errors; }
-    void printErrors() const {
+   
+	void printErrors() const {
         for (auto& e : errors) {
             std::cerr << e << "\n";
         }

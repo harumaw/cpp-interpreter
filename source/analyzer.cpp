@@ -25,8 +25,6 @@ std::shared_ptr<Type> compareRank(const std::shared_ptr<Type>& lhs, const std::s
 
 }
 
-
-
 std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types = {
     {"int",    std::make_shared<IntegerType>()},
     {"float",  std::make_shared<FloatType>()},
@@ -186,17 +184,17 @@ void Analyzer::visit(CompoundStatement& node) {
 
 void Analyzer::visit(NameSpaceDeclaration& node) {
     VISIT_BODY_BEGIN
-    // 1. Создаём новый scope для namespace (без ASTNode)
+    //  создаём новый scope для namespace (без ASTNode)
     auto ns_scope = scope->create_new_table(scope, nullptr);
-    // 2. Регистрируем namespace в текущем scope
+    // регистрируем namespace в текущем scope
     scope->push_namespace(node.name, ns_scope);
-    // 3. Переходим в новый scope и анализируем вложенные объявления
+    // переходим в новый scope и анализируем вложенные объявления
     auto saved_scope = scope;
     scope = ns_scope;
     for (auto& decl : node.declarations) {
         decl->accept(*this);
     }
-    // 4. Возвращаемся в родительский scope
+    // 4 Возвращаемся в родительский scope
     scope = saved_scope;
     VISIT_BODY_END
 }
@@ -258,6 +256,11 @@ void Analyzer::visit(BinaryOperation& node) {
     auto left = current_type;
     node.rhs->accept(*this);
     auto right = current_type;
+
+     if (dynamic_cast<Arithmetic*>(left.get()) == nullptr || dynamic_cast<Arithmetic*>(right.get()) == nullptr) {
+        throw SemanticException("binary operation requires arithmetic types");
+    }
+
     int rl = getTypeRank(*left);
     int rr = getTypeRank(*right);
     if (rl < 0 || rr < 0) {
@@ -385,17 +388,20 @@ void Analyzer::visit(ParenthesizedExpression& node) {
 
 void Analyzer::visit(TernaryExpression& node) {
     VISIT_BODY_BEGIN
-      node.condition->accept(*this);
-      node.true_expr->accept(*this);
-      auto left = current_type;
-      node.false_expr->accept(*this);
-      auto right = current_type;
-      int rl = getTypeRank(*left);
-      int rr = getTypeRank(*right);
-      if (rl < 0 || rr < 0) {
-          throw SemanticException("ternary expression types do not match");
-      }
-      current_type = compareRank(left, right);
+    node.condition->accept(*this);
+    node.true_expr->accept(*this);
+    auto left = current_type;
+    node.false_expr->accept(*this);
+    auto right = current_type;
+    if (dynamic_cast<Arithmetic*>(left.get()) == nullptr || dynamic_cast<Arithmetic*>(right.get()) == nullptr) {
+        throw SemanticException("binary operation requires arithmetic types");
+    }
+    int rl = getTypeRank(*left);
+    int rr = getTypeRank(*right);
+    if (rl < 0 || rr < 0) {
+        throw SemanticException("ternary expression types do not match");
+    }
+    current_type = compareRank(left, right);
     VISIT_BODY_END
 }
 
