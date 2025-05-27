@@ -294,7 +294,7 @@ void Analyzer::visit(ForStatement& node) {
     VISIT_BODY_END
 }
 
-void Analyzer::visit(ReturnStatement& node) {
+void Analyzer::visit(ReturnStatement& node) { //maybe rework
     VISIT_BODY_BEGIN
     if (return_type_stack.empty())
         throw SemanticException("return outside of function");
@@ -540,4 +540,46 @@ void Analyzer::visit(NameSpaceAcceptExpression& node) {
     current_type = scope->match_variable(node.name);
     scope = saved_scope;
     VISIT_BODY_END
+}
+
+void Analyzer::visit(StaticAssertStatement& node) {
+    VISIT_BODY_BEGIN
+    node.condition->accept(*this);
+    if (!dynamic_cast<BoolType*>(current_type.get()) &&
+        !dynamic_cast<Integral*>(current_type.get()))
+        throw SemanticException("static_assert requires constant boolean/integral");
+    if (!evaluateConstant(node.condition.get()))
+        throw SemanticException("static assertion failed: " + node.msg);
+    VISIT_BODY_END
+}
+
+bool Analyzer::evaluateConstant(ASTNode* expr) {
+    if (auto b = dynamic_cast<BoolLiteral*>(expr)) {
+        return b->value;
+    }
+    if (auto i = dynamic_cast<IntLiteral*>(expr)) {
+        return i->value != 0;
+    }
+    if (auto bin = dynamic_cast<BinaryOperation*>(expr)) {
+        bool l = evaluateConstant(bin->lhs.get());
+        bool r = evaluateConstant(bin->rhs.get());
+        
+        if (bin->op == "+")        return l + r;
+        else if (bin->op == "-")   return l - r;
+        else if (bin->op == "*")   return l * r;
+        else if (bin->op == "/")   return r ? (l / r) : false;
+        
+        else if (bin->op == "<")   return l < r;
+        else if (bin->op == ">")   return l > r;
+        else if (bin->op == "<=")  return l <= r;
+        else if (bin->op == ">=")  return l >= r;
+        else if (bin->op == "==")  return l == r;
+        else if (bin->op == "!=")  return l != r;
+
+        else if (bin->op == "&&")  return l && r;
+        else if (bin->op == "||")  return l || r;
+
+        throw SemanticException("unsupported operator in static_assert: " + bin->op);
+    }
+    throw SemanticException("static_assert requires compile-time constant expression");
 }

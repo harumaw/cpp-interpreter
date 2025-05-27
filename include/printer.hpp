@@ -29,6 +29,7 @@ public:
 	void visit(ContinueStatement&) override;
 	void visit(StructMemberAccessExpression&) override;
 	void visit(DoWhileStatement&) override;
+	void visit(StaticAssertStatement&) override;
 public:
 	void visit(BinaryOperation&) override;
 	void visit(PrefixExpression&) override;

@@ -104,6 +104,17 @@ struct DoWhileStatement : public LoopStatement{
 	);
 	void accept(Visitor&) override;
 };
+
+struct StaticAssertStatement : public Statement {
+	std::shared_ptr<Expression> condition;
+	std::string msg;
+
+	StaticAssertStatement(const std::shared_ptr<Expression>&, const std::string&);
+
+	void accept(Visitor&) override;
+};
+
+
 using statement = std::shared_ptr<Statement>;
 using compound_statement = std::shared_ptr<CompoundStatement>;
 using conditional_statement = std::shared_ptr<ConditionalStatement>;
@@ -117,4 +128,5 @@ using return_statement = std::shared_ptr<ReturnStatement>;
 using declaration_statement = std::shared_ptr<DeclarationStatement>;
 using expression_statement = std::shared_ptr<ExpressionStatement>;
 using do_while_statement = std::shared_ptr<DoWhileStatement>;
+using stat_assert = std::shared_ptr<StaticAssertStatement>;
 

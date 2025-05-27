@@ -57,6 +57,7 @@ public:
 	void visit(ContinueStatement&) override;
 	void visit(StructMemberAccessExpression&) override;
 	void visit(DoWhileStatement&) override;
+	void visit(StaticAssertStatement&) override;
 public:
 	void visit(BinaryOperation&) override;
 	void visit(PrefixExpression&) override;
@@ -80,6 +81,10 @@ public:
 	std::shared_ptr<Scope> scope;
     std::shared_ptr<Type> current_type;
 	std::vector<std::shared_ptr<Type>> return_type_stack;
+	bool evaluateConstant(ASTNode*);
 
+	enum class BinaryOp{
+		Add, Subtract, Multiply, Divide, Less, Greater, Equal
+	};
 
 };

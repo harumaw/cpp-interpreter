@@ -75,3 +75,10 @@ DoWhileStatement::DoWhileStatement(
 void DoWhileStatement::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
+
+
+StaticAssertStatement::StaticAssertStatement(
+	const std::shared_ptr<Expression>& condition, const std::string& msg) : condition(condition) , msg(msg) {}
+void StaticAssertStatement::accept(Visitor& visitor){
+	visitor.visit(*this);
+}

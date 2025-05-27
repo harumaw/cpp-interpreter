@@ -230,6 +230,8 @@ statement Parser::parse_statement() {
         return parse_loop_statement();
     } else if (check_token(TokenType::RETURN, TokenType::BREAK, TokenType::CONTINUE)) {
         return parse_jump_statement();
+    } else if(match_token(TokenType::STATICASSERT)){
+        return parse_staticassert_statement();
     } else if (is_type_specifier()) {
         return parse_declaration_statement();
     } else {
@@ -374,6 +376,21 @@ expression_statement Parser::parse_expression_statement() { // mozhet bit nullpt
     auto expression = parse_expression();
     extract_token(TokenType::SEMICOLON);
     return std::make_shared<ExpressionStatement>(expression);
+}
+
+
+stat_assert Parser::parse_staticassert_statement(){
+    extract_token(TokenType::PARENTHESIS_LEFT);
+
+    auto condition = parse_expression();
+
+    extract_token(TokenType::COMMA);
+
+    auto msg = extract_token(TokenType::LITERAL_STRING);
+    extract_token(TokenType::PARENTHESIS_RIGHT);
+    extract_token(TokenType::SEMICOLON);
+
+    return std::make_shared<StaticAssertStatement>(condition, msg);
 }
 //comma dobavit, logical
 expression Parser::parse_expression(){

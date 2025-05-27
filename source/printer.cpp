@@ -471,3 +471,19 @@ void Printer::visit(NameSpaceAcceptExpression& node) {
     
     --indent_level;
 }
+
+void Printer::visit(StaticAssertStatement& node){
+    indent();
+    std::cout << "StaticAssertStatement:\n";
+
+    ++indent_level;
+
+    indent();
+    std::cout << "Condition";
+    node.condition->accept(*this);
+
+    indent();
+    std::cout << "Message:" << node.msg << "\n";
+
+    --indent_level;
+}

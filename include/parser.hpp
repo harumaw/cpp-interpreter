@@ -47,6 +47,7 @@ public:
 	declaration_statement parse_declaration_statement();
 	expression_statement parse_expression_statement();
 	do_while_statement parse_do_while_statement();
+	stat_assert parse_staticassert_statement();
 public:
 	expression parse_expression();
 	expression parse_comma_expression();
