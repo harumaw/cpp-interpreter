@@ -120,10 +120,10 @@ void Analyzer::visit(ParameterDeclaration& node) {
 void Analyzer::visit(FuncDeclaration& node) {
     VISIT_BODY_BEGIN
 
-    // 1) Определяем возвращаемый тип функции
+    // определяем возвращаемый тип функции
     auto return_t = get_type(node.type);
 
-    // 2) Собираем типы параметров
+    // собираем типы параметров
     std::vector<std::shared_ptr<Type>> arg_types;
     for (auto& param : node.args) {
         current_type = get_type(param->type);
@@ -131,22 +131,22 @@ void Analyzer::visit(FuncDeclaration& node) {
         arg_types.push_back(current_type);
     }
 
-    // 3) Проверяем, не объявлена ли функция с такой сигнатурой в этом скоупе
+    // проверяем, не объявлена ли функция с такой сигнатурой в этом скоупе
     if (scope->has_function(node.declarator->name, arg_types)) {
         throw SemanticException("function already declared: " + node.declarator->name);
     }
 
-    // 4) Регистрируем новую функцию в текущем скоупе
+    // регистрируем новую функцию в текущем скоупе
     auto func_t = std::make_shared<FuncType>(return_t, arg_types);
     scope->push_func(node.declarator->name, func_t);
 
-    // 5) Сохраняем ожидаемый возвращаемый тип в стек
+    // сохраняем ожидаемый возвращаемый тип в стек
     return_type_stack.push_back(return_t);
 
-    // 6) Переходим в новый вложенный скоуп для тела функции
+    // переходим в новый вложенный скоуп для тела функции
     scope = scope->create_new_table(scope, node.body);
 
-    // 7) Регистрируем параметры как локальные переменные
+    // регистрируем параметры как локальные переменные
     for (size_t i = 0; i < node.args.size(); ++i) {
         const auto& pname = node.args[i]->init_declarator->declarator->name;
         if (scope->has_variable(pname)) {
@@ -155,14 +155,14 @@ void Analyzer::visit(FuncDeclaration& node) {
         scope->push_variable(pname, arg_types[i]);
     }
 
-    // 8) Анализируем тело функции
+
     node.body->accept(*this);
 
-    // 9) Выходим из скоупа и восстанавливаем предыдущий ожидаемый тип
+    // выходим из скоупа и восстанавливаем предыдущий ожидаемый тип
     scope = scope->get_prev_table();
     return_type_stack.pop_back();
 
-    // 10) Устанавливаем current_type на тип функции (для вложенных вызовов)
+    // устанавливаем current_type на тип функции (для вложенных вызовов)
     current_type = func_t;
 
     VISIT_BODY_END
@@ -332,7 +332,6 @@ void Analyzer::visit(BinaryOperation& node) {
         throw SemanticException("type mismatch in binary operation");
     }
 
-    // Promotion+rank logic в compareRank
     current_type = compareRank(left, right);
     VISIT_BODY_END
 }
@@ -468,7 +467,6 @@ void Analyzer::visit(TernaryExpression& node) {
         throw SemanticException("ternary expression types do not match");
     }
 
-    // Promotion+rank logic в compareRank
     current_type = compareRank(left, right);
     VISIT_BODY_END
 }
