@@ -6,55 +6,90 @@
 #include <unordered_map>
 #include <functional>
 #include <memory>
-
-#include "ast.hpp"     
-#include "declaration.hpp"       
-#include "semantic_exception.hpp"
-
+#include <stdexcept>
+#include "declaration.hpp"
+#include "type.hpp"
 
 struct Value {
-    enum class Type { Integer, Float, Char, Bool, Void } type;
-    int64_t    i;
-    float     f;
-    char16_t   c;
-    bool       b;
+    enum class Type { Integer, Float, Char, Bool, Void, Struct } type;
+    int64_t    i{};
+    float     f{};
+    char16_t   c{};
+    bool       b{};
+    std::unordered_map<std::string, Value> members;
 
-    static Value makeInt(int64_t v)   { Value x {Type::Integer, v, 0, 0, false}; return x; }
-    static Value makeFloat(float v)  { Value x {Type::Float,    0, v, 0, false}; return x; }
-    static Value makeChar(char16_t v) { Value x {Type::Char,     0, 0, v,  false}; return x; }
-    static Value makeBool(bool v)     { Value x {Type::Bool,     0, 0, 0,  v   }; return x; }
-    static Value makeVoid()           { Value x {Type::Void,     0, 0, 0,  false}; return x; }
+    static Value makeInt(int64_t v){
+        Value x;
+        x.type = Type::Integer;
+        x.i = v;
+        return x;
+    }
+
+    static Value makeFloat(float v){
+        Value x;
+        x.type = Type::Float;
+        x.f = v;
+        return x;
+    }
+
+    static Value makeChar(char16_t v){
+        Value x;
+        x.type = Type::Char;
+        x.c = v;
+        return x;
+    }
+
+    static Value makeBool(bool v){
+        Value x;
+        x.type = Type::Bool;
+        x.b = v;
+        return x;
+    }   
+
+    static Value makeStruct(std::unordered_map<std::string, Value> members){
+        Value x;
+        x.type = Type::Struct;
+        x.members = members;
+        return x;
+    }   
+    
+    static Value makeVoid(){
+        Value x;
+        x.type = Type::Void;
+        return x;
+    }
+
 };
 
 class SymbolTable {
 public:
-    SymbolTable(std::shared_ptr<SymbolTable> prev_table = nullptr) : prev_table(prev_table) {}
+    SymbolTable(std::shared_ptr<SymbolTable> prev_table, std::shared_ptr<ASTNode> node) {}
 
-    std::shared_ptr<SymbolTable> get_prev_table();
-    
-    std::shared_ptr<SymbolTable> create_new_table();
+    std::shared_ptr<SymbolTable> get_prev_table();    
+    std::shared_ptr<SymbolTable> create_new_table(std::shared_ptr<SymbolTable> prev_table, std::shared_ptr<ASTNode> node);
 
     void push_variable(const std::string& name, const Value& value);
-    std::shared_ptr<Value> match_variable(const std::string& name);
+    Value match_variable(const std::string& name) const;
+
+    void push_function(const std::string& name, const std::function<Value(const std::vector<Value>&)>& fn);
+    std::function<Value(const std::vector<Value>&)> match_function(const std::string& name) const;
+
+    void push_struct(const std::string& name, const std::unordered_map<std::string, Value::Type>& schema);
+    std::unordered_map<std::string, Value::Type>& match_struct(const std::string& name) const;
+
+    void push_namespace(const std::string& name, std::shared_ptr<SymbolTable> table);
+    std::shared_ptr<SymbolTable> match_namespace(const std::string& name) const;
 
 
-    void push_function(const std::string& name, std::function<Value(const std::vector<Value>&)> fn);
-    std::function<Value(const std::vector<Value>&)> match_function(const std::string& name);
 
-    void push_struct(const std::string& name, std::vector<std::pair<std::string, Value::Type>> members);
-    const std::vector<std::pair<std::string, Value::Type>>& match_struct();
-
-    void push_namespace(const std::string& name, std::shared_ptr<SymbolTable> ns);
-    std::shared_ptr<SymbolTable> match_namespace(const std::string& name);
 
 
 private:
     std::shared_ptr<SymbolTable> prev_table;
+    std::shared_ptr<ASTNode> node;
 
-    std::unordered_map<std::string, std::shared_ptr<Value>> variables;
+    std::unordered_map<std::string, Value> variables;
     std::unordered_map<std::string, std::function<Value(const std::vector<Value>&)>> functions;
-    std::unordered_map<std::string, std::vector<std::pair<std::string, Value::Type>>> structs;
+    std::unordered_map<std::string, std::unordered_map<std::string, Value::Type>> structs;
     std::unordered_map<std::string, std::shared_ptr<SymbolTable>> namespaces;
-
 };
-

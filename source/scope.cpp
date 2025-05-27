@@ -94,3 +94,31 @@ void Scope::push_func(const std::string& name, std::shared_ptr<FuncType> func) {
 bool Scope::has_variable(const std::string& name) const {
     return variables.find(name) != variables.end();
 }
+
+bool Scope::has_struct(const std::string& name) const {
+    return structs.find(name) != structs.end();
+}
+
+bool Scope::has_namespace(const std::string& name) const {
+    if (namespaces.count(name)) return true;
+    if (prev_table) return prev_table->has_namespace(name);
+    return false;
+}
+
+
+bool Scope::has_function(const std::string& name,
+                         const std::vector<std::shared_ptr<Type>>& args) const {
+    auto range = functions.equal_range(name);
+    for (auto it = range.first; it != range.second; ++it) {
+        auto cand = it->second;
+        auto params = cand->get_args();
+        if (params.size() != args.size()) continue;
+        bool ok = true;
+        for (size_t i = 0; i < args.size(); ++i) {
+            if (!args[i]->equals(params[i])) { ok = false; break; }
+        }
+        if (ok) return true;
+    }
+    if (prev_table) return prev_table->has_function(name, args);
+    return false;
+}

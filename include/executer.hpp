@@ -1,12 +1,15 @@
 #include "visitor.hpp"
+#include "symboltable.hpp"
 
 class Execute : public Visitor {
 public:
-    Execute() = default;
+    Execute();
+	
 	
     void execute(TranslationUnit& unit);
 public:
 	void visit(ASTNode&) override;
+	void visit(TranslationUnit& unit) override;
 	void visit(Declaration::PtrDeclarator&) override;
 	void visit(Declaration::SimpleDeclarator&) override;
 	void visit(Declaration::InitDeclarator&) override;
@@ -47,10 +50,7 @@ public:
 	void visit(NameSpaceAcceptExpression&) override;
 
 private:
-
-
-/// var value
-// func args
-//struct tozhe samoe    
+	std::shared_ptr<SymbolTable> table;
+	Value current_value;
 
 };

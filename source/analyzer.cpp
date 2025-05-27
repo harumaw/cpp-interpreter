@@ -10,19 +10,22 @@ int getTypeRank(const Type& type) {
     return -2;
 }
 
-
 std::shared_ptr<Type> compareRank(const std::shared_ptr<Type>& lhs, const std::shared_ptr<Type>& rhs) {
     int rl = getTypeRank(*lhs);
     int rr = getTypeRank(*rhs);
+    int maxr = std::max(rl, rr);
 
-    if (rl > rr) {
-        return lhs;
-    } else if (rl < rr) {
-        return rhs;
-    } else {
-        return lhs;
+    auto intType = Analyzer::default_types.at("int");
+    int intRank = getTypeRank(*intType);
+    if (maxr < intRank) {
+        return intType;
     }
 
+    if (rl >= rr) {
+        return lhs;
+    } else {
+        return rhs;
+    }
 }
 
 std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types = {
@@ -116,9 +119,11 @@ void Analyzer::visit(ParameterDeclaration& node) {
 
 void Analyzer::visit(FuncDeclaration& node) {
     VISIT_BODY_BEGIN
+
+    // 1) Определяем возвращаемый тип функции
     auto return_t = get_type(node.type);
 
-
+    // 2) Собираем типы параметров
     std::vector<std::shared_ptr<Type>> arg_types;
     for (auto& param : node.args) {
         current_type = get_type(param->type);
@@ -126,31 +131,64 @@ void Analyzer::visit(FuncDeclaration& node) {
         arg_types.push_back(current_type);
     }
 
+    // 3) Проверяем, не объявлена ли функция с такой сигнатурой в этом скоупе
+    if (scope->has_function(node.declarator->name, arg_types)) {
+        throw SemanticException("function already declared: " + node.declarator->name);
+    }
+
+    // 4) Регистрируем новую функцию в текущем скоупе
     auto func_t = std::make_shared<FuncType>(return_t, arg_types);
     scope->push_func(node.declarator->name, func_t);
-    
+
+    // 5) Сохраняем ожидаемый возвращаемый тип в стек
+    return_type_stack.push_back(return_t);
+
+    // 6) Переходим в новый вложенный скоуп для тела функции
     scope = scope->create_new_table(scope, node.body);
 
+    // 7) Регистрируем параметры как локальные переменные
     for (size_t i = 0; i < node.args.size(); ++i) {
         const auto& pname = node.args[i]->init_declarator->declarator->name;
-        if (scope->has_variable(pname))
+        if (scope->has_variable(pname)) {
             throw SemanticException("parameter already declared: " + pname);
+        }
         scope->push_variable(pname, arg_types[i]);
     }
 
-
+    // 8) Анализируем тело функции
     node.body->accept(*this);
+
+    // 9) Выходим из скоупа и восстанавливаем предыдущий ожидаемый тип
     scope = scope->get_prev_table();
+    return_type_stack.pop_back();
+
+    // 10) Устанавливаем current_type на тип функции (для вложенных вызовов)
     current_type = func_t;
+
     VISIT_BODY_END
 }
 
 void Analyzer::visit(StructDeclaration& node) {
     VISIT_BODY_BEGIN
+
+    if (scope->has_variable(node.name)) {
+        throw SemanticException("struct already declared: " + node.name);
+    }
     std::unordered_map<std::string, std::shared_ptr<Type>> members;
+    if (node.members.empty()) {
+        throw SemanticException("struct must have at least one member: " + node.name);
+    }
     for (auto& m : node.members) {
         m->accept(*this);
         const auto& name = m->declarator_list[0]->declarator->name;
+        if (members.count(name)) {
+            throw SemanticException("duplicate struct member: " + name + " in struct " + node.name);
+        }
+
+        if (!current_type) {
+            throw SemanticException("unknown type for struct member: " + name + " in struct " + node.name);
+        }
+
         members[name] = current_type;
     }
     auto st = std::make_shared<StructType>(members);
@@ -158,6 +196,7 @@ void Analyzer::visit(StructDeclaration& node) {
     current_type = st;
     VISIT_BODY_END
 }
+
 
 void Analyzer::visit(ArrayDeclaration& node) {
     VISIT_BODY_BEGIN
@@ -184,18 +223,19 @@ void Analyzer::visit(CompoundStatement& node) {
 
 void Analyzer::visit(NameSpaceDeclaration& node) {
     VISIT_BODY_BEGIN
-    //  создаём новый scope для namespace (без ASTNode)
+
+    if (scope->has_namespace(node.name))
+        throw SemanticException("namespace already declared: " + node.name);
+
     auto ns_scope = scope->create_new_table(scope, nullptr);
-    // регистрируем namespace в текущем scope
     scope->push_namespace(node.name, ns_scope);
-    // переходим в новый scope и анализируем вложенные объявления
-    auto saved_scope = scope;
+
+    auto saved = scope;
     scope = ns_scope;
-    for (auto& decl : node.declarations) {
+    for (auto& decl : node.declarations)
         decl->accept(*this);
-    }
-    // 4 Возвращаемся в родительский scope
-    scope = saved_scope;
+    scope = saved;
+
     VISIT_BODY_END
 }
 
@@ -213,51 +253,76 @@ void Analyzer::visit(ExpressionStatement& node) {
 
 void Analyzer::visit(ConditionalStatement& node) {
     VISIT_BODY_BEGIN
+
     node.if_branch.first->accept(*this);
+    if (!dynamic_cast<BoolType*>(current_type.get()))
+        throw SemanticException("if condition must be boolean");
     node.if_branch.second->accept(*this);
-    if (node.else_branch)
+    if (node.else_branch) {
         node.else_branch->accept(*this);
+    }
+
     VISIT_BODY_END
 }
 
 void Analyzer::visit(WhileStatement& node) {
     VISIT_BODY_BEGIN
     node.condition->accept(*this);
+    if (!dynamic_cast<BoolType*>(current_type.get()))
+        throw SemanticException("while condition must be boolean");
+
     node.statement->accept(*this);
     VISIT_BODY_END
 }
 
 void Analyzer::visit(ForStatement& node) {
     VISIT_BODY_BEGIN
+
     if (node.initialization)
         node.initialization->accept(*this);
-    if (node.condition)
+
+    if (node.condition) {
         node.condition->accept(*this);
+        if (!dynamic_cast<BoolType*>(current_type.get()))
+            throw SemanticException("for condition must be boolean");
+    }
+
     if (node.increment)
         node.increment->accept(*this);
+
     node.body->accept(*this);
     VISIT_BODY_END
 }
 
 void Analyzer::visit(ReturnStatement& node) {
     VISIT_BODY_BEGIN
-    if (node.expression)
+    if (return_type_stack.empty())
+        throw SemanticException("return outside of function");
+
+    if (node.expression) {
         node.expression->accept(*this);
+        if (!current_type->equals(return_type_stack.back()))
+            throw SemanticException("return type mismatch");
+    } else {
+        if (!dynamic_cast<VoidType*>(return_type_stack.back().get()))
+            throw SemanticException("non-void function must return a value");
+    }
     VISIT_BODY_END
 }
+
 
 void Analyzer::visit(BreakStatement& /*node*/) {}
 void Analyzer::visit(ContinueStatement& /*node*/) {}
 
 void Analyzer::visit(BinaryOperation& node) {
     VISIT_BODY_BEGIN
-    // арифметическая операция: промоция типов по рангу
     node.lhs->accept(*this);
     auto left = current_type;
     node.rhs->accept(*this);
     auto right = current_type;
 
-     if (dynamic_cast<Arithmetic*>(left.get()) == nullptr || dynamic_cast<Arithmetic*>(right.get()) == nullptr) {
+    if (dynamic_cast<Arithmetic*>(left.get()) == nullptr
+     || dynamic_cast<Arithmetic*>(right.get()) == nullptr) {
         throw SemanticException("binary operation requires arithmetic types");
     }
 
@@ -266,10 +331,12 @@ void Analyzer::visit(BinaryOperation& node) {
     if (rl < 0 || rr < 0) {
         throw SemanticException("type mismatch in binary operation");
     }
-    // выбираем более широкий тип
+
+    // Promotion+rank logic в compareRank
     current_type = compareRank(left, right);
     VISIT_BODY_END
 }
+
 void Analyzer::visit(PrefixExpression& node) {
     VISIT_BODY_BEGIN
     node.base->accept(*this);
@@ -296,37 +363,31 @@ void Analyzer::visit(PostfixDecrementExpression& node) {
 
 void Analyzer::visit(FunctionCallExpression& node) {
     VISIT_BODY_BEGIN
-    //  сначала проходим по всем аргументам и собираем их типы
     std::vector<std::shared_ptr<Type>> arg_types;
     for (auto& arg : node.args) {
         arg->accept(*this);
         arg_types.push_back(current_type);
     }
 
-    // ищем функцию: если базовое выражение — просто идентификатор, 
-    //    то используем match_function, иначе пытаемся взять из current_type
     std::shared_ptr<FuncType> func_t;
     if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
-        // имя функции в виде идентификатора
+        if (!scope->has_function(ident->name, arg_types))
+            throw SemanticException("undefined function or signature mismatch: " + ident->name);
         func_t = scope->match_function(ident->name, arg_types);
     } else {
-        // вычисляем выражение, надеясь на функцию-указатель или лямбду
         node.base->accept(*this);
         func_t = std::dynamic_pointer_cast<FuncType>(current_type);
-        if (!func_t) {
+        if (!func_t)
             throw SemanticException("expression is not a function");
-        }
-        // здесь мы тоже проверяем count и типы, на всякий случай
         auto params = func_t->get_args();
-        if (params.size() != arg_types.size()) {
+        if (params.size() != arg_types.size())
             throw SemanticException("argument count mismatch");
-        }
         for (size_t i = 0; i < arg_types.size(); ++i) {
-            if (!arg_types[i]->equals(params[i])) {
+            if (!arg_types[i]->equals(params[i]))
                 throw SemanticException("argument type mismatch");
-            }
         }
     }
+
     current_type = func_t->get_returnable_type();
     VISIT_BODY_END
 }
@@ -389,18 +450,25 @@ void Analyzer::visit(ParenthesizedExpression& node) {
 void Analyzer::visit(TernaryExpression& node) {
     VISIT_BODY_BEGIN
     node.condition->accept(*this);
+    if (!dynamic_cast<BoolType*>(current_type.get()))
+        throw SemanticException("ternary condition must be boolean");
+
     node.true_expr->accept(*this);
     auto left = current_type;
     node.false_expr->accept(*this);
     auto right = current_type;
-    if (dynamic_cast<Arithmetic*>(left.get()) == nullptr || dynamic_cast<Arithmetic*>(right.get()) == nullptr) {
-        throw SemanticException("binary operation requires arithmetic types");
+
+    if (dynamic_cast<Arithmetic*>(left.get()) == nullptr
+     || dynamic_cast<Arithmetic*>(right.get()) == nullptr) {
+        throw SemanticException("ternary expression requires arithmetic types");
     }
     int rl = getTypeRank(*left);
     int rr = getTypeRank(*right);
     if (rl < 0 || rr < 0) {
         throw SemanticException("ternary expression types do not match");
     }
+
+    // Promotion+rank logic в compareRank
     current_type = compareRank(left, right);
     VISIT_BODY_END
 }
@@ -438,42 +506,40 @@ void Analyzer::visit(SizeOfExpression& node) {
 }
 
 std::shared_ptr<Type> Analyzer::get_type(const std::string& name) {
-    try {
+    if (scope->has_struct(name)) {
         return scope->match_struct(name);
-    } catch (...) {
-        auto it = default_types.find(name);
-        if (it != default_types.end()) return it->second;
+    }
+    auto it = default_types.find(name);
+    if (it != default_types.end()) {
+        return it->second;
     }
     throw SemanticException("unknown type: " + name);
 }
 
 void Analyzer::visit(DoWhileStatement& node) {
     VISIT_BODY_BEGIN
+
     node.statement->accept(*this);
     node.condition->accept(*this);
+    if (!dynamic_cast<BoolType*>(current_type.get()))
+        throw SemanticException("do-while condition must be boolean");
+
     VISIT_BODY_END
 }
 
 
 void Analyzer::visit(NameSpaceAcceptExpression& node) {
     VISIT_BODY_BEGIN
-
-    // 1) base должен быть именно идентификатором namespace
     auto ns_ident = dynamic_cast<IdentifierExpression*>(node.base.get());
-    if (!ns_ident) {
+    if (!ns_ident)
         throw SemanticException("left side of '::' must be a namespace name");
-    }
 
-    auto ns_scope = scope->match_namespace(ns_ident->name);
+    if (!scope->has_namespace(ns_ident->name))
+        throw SemanticException("undefined namespace: " + ns_ident->name);
 
-    // 3) переключаемся на него
     auto saved_scope = scope;
-    scope = ns_scope;
-
+    scope = scope->match_namespace(ns_ident->name);
     current_type = scope->match_variable(node.name);
-
-    // 5) восстанавливаем исходный scope
     scope = saved_scope;
-
     VISIT_BODY_END
 }

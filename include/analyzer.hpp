@@ -79,6 +79,7 @@ public:
 	static std::unordered_map<std::string, std::shared_ptr<Type>> default_types;
 	std::shared_ptr<Scope> scope;
     std::shared_ptr<Type> current_type;
+	std::vector<std::shared_ptr<Type>> return_type_stack;
 
 
 };
