@@ -38,10 +38,11 @@ struct Declaration::InitDeclarator {
 };
 
 struct VarDeclaration: public Declaration {
+	bool is_const = false;
 	std::string type; // change
 	std::vector<std::shared_ptr<InitDeclarator>> declarator_list;
 
-	VarDeclaration(const std::string&, const std::vector<std::shared_ptr<InitDeclarator>>&);
+	VarDeclaration(bool is_const, const std::string&, const std::vector<std::shared_ptr<InitDeclarator>>&);
 	void accept(Visitor&) override;
 };
 

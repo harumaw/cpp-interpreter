@@ -152,3 +152,15 @@ bool ArrayType::equals(const std::shared_ptr<Type>& other) const {
     return o && base->equals(o->base);
 }
 
+
+
+ConstType::ConstType(std::shared_ptr<Type> base) : base(base) {}
+std::shared_ptr<Type> ConstType::get_base(){
+    return base;
+}
+
+bool ConstType::equals(const std::shared_ptr<Type>& other) const {
+    auto p = std::dynamic_pointer_cast<ConstType>(other);
+    if (!p) return false;
+    return base->equals(p->base);
+}

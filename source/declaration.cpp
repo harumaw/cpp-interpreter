@@ -22,9 +22,10 @@ void Declaration::InitDeclarator::accept(Visitor& visitor) {
 }
 
 VarDeclaration::VarDeclaration(
+	bool is_const,
 	const std::string& type,
 	const std::vector<std::shared_ptr<InitDeclarator>>& declarator_list
-	) : type(type), declarator_list(declarator_list) {}
+	) : is_const(is_const), type(type), declarator_list(declarator_list) {}
 
 void VarDeclaration::accept(Visitor& visitor) {
 	visitor.visit(*this);

@@ -1,11 +1,4 @@
-int x = 2;
-
-
-
-char f() {
-    return 2;
-}
-
 int main(){
-    f();
+    int x = 2;
+    const int x = 3;
 }

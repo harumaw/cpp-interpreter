@@ -13,6 +13,7 @@ struct Type {
 
 };
 
+
 // ---------------------------
 // Фундаментальные типы
 // ---------------------------
@@ -34,7 +35,7 @@ protected:
 };
     
     
-    struct Integral : Arithmetic {
+struct Integral : Arithmetic {
     explicit Integral(std::any value);
 };
 
@@ -125,7 +126,7 @@ private:
 };
 
 struct ArrayType : Composite {
-    ArrayType(std::shared_ptr<Type> base, expression size);
+    explicit ArrayType(std::shared_ptr<Type> base, expression size);
     std::shared_ptr<Type> get_base_type() const;
     expression get_size() const;
     bool equals(const std::shared_ptr<Type>& other) const override;
@@ -133,4 +134,15 @@ struct ArrayType : Composite {
 private:
     std::shared_ptr<Type> base;
     expression size;
+};
+
+
+struct ConstType : Type{
+    explicit ConstType(std::shared_ptr<Type> base);
+    std::shared_ptr<Type> get_base();
+    
+    bool equals(const std::shared_ptr<Type>& other) const override;
+
+private:
+    std::shared_ptr<Type> base;
 };

@@ -89,7 +89,12 @@ void Analyzer::visit(Declaration::InitDeclarator& node) {
 
 void Analyzer::visit(VarDeclaration& node) {
     VISIT_BODY_BEGIN
+
     auto declared = get_type(node.type);
+
+    if(node.is_const){
+        declared = std::make_shared<ConstType>(declared);
+    }
     for (auto& decl : node.declarator_list) {
         current_type = declared;
         decl->declarator->accept(*this);
@@ -313,16 +318,36 @@ void Analyzer::visit(ReturnStatement& node) { //maybe rework
 
 void Analyzer::visit(BreakStatement& /*node*/) {}
 void Analyzer::visit(ContinueStatement& /*node*/) {}
-
 void Analyzer::visit(BinaryOperation& node) {
     VISIT_BODY_BEGIN
+
+    
+    if (node.op == "=") {
+        node.lhs->accept(*this);
+        auto lhs_t = current_type;
+        if (dynamic_cast<ConstType*>(lhs_t.get())) {
+            throw SemanticException("assignment to const variable");
+        }
+        node.rhs->accept(*this);
+        auto rhs_t = current_type;
+        if (!rhs_t->equals(lhs_t) &&
+            !(dynamic_cast<Arithmetic*>(rhs_t.get()) &&
+              dynamic_cast<Arithmetic*>(lhs_t.get()))) {
+            throw SemanticException("type mismatch in assignment");
+        }
+        current_type = lhs_t;
+
+        
+        return;
+    }
+
     node.lhs->accept(*this);
     auto left = current_type;
     node.rhs->accept(*this);
     auto right = current_type;
 
-    if (dynamic_cast<Arithmetic*>(left.get()) == nullptr
-     || dynamic_cast<Arithmetic*>(right.get()) == nullptr) {
+    if (!dynamic_cast<Arithmetic*>(left.get()) ||
+        !dynamic_cast<Arithmetic*>(right.get())) {
         throw SemanticException("binary operation requires arithmetic types");
     }
 
@@ -333,8 +358,10 @@ void Analyzer::visit(BinaryOperation& node) {
     }
 
     current_type = compareRank(left, right);
+
     VISIT_BODY_END
 }
+
 
 void Analyzer::visit(PrefixExpression& node) {
     VISIT_BODY_BEGIN
@@ -583,3 +610,12 @@ bool Analyzer::evaluateConstant(ASTNode* expr) {
     }
     throw SemanticException("static_assert requires compile-time constant expression");
 }
+
+
+
+
+// 1 tip 
+// strogaya
+// 2 tip poka ssylki v const i td
+// 3
+//

@@ -82,3 +82,4 @@ StaticAssertStatement::StaticAssertStatement(
 void StaticAssertStatement::accept(Visitor& visitor){
 	visitor.visit(*this);
 }
+ 

@@ -55,7 +55,10 @@ void Printer::visit(Declaration::InitDeclarator& node) {
 
 void Printer::visit(VarDeclaration& node) {
     indent();
-    std::cout << "VarDeclaration: " << node.type << "\n";
+   std::cout << "VarDeclaration: "
+              << (node.is_const ? "const " : "")
+              << node.type << "\n";
+
     ++indent_level;
     for (std::size_t i = 0; i < node.declarator_list.size(); ++i) {
         node.declarator_list[i]->accept(*this);
