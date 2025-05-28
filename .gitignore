@@ -3,4 +3,4 @@ build/
 example.txt
 .vscode/
 analyze.txt
-a.out/
+a.out
