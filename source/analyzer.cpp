@@ -429,7 +429,23 @@ void Analyzer::visit(BinaryOperation& node) {
         }
         current_type = lhs_t;
 
-        
+    
+    }
+    if (node.op == "<"  || node.op == ">"  ||
+        node.op == "<=" || node.op == ">=" ||
+        node.op == "==" || node.op == "!=") {
+        node.lhs->accept(*this);
+        auto left = current_type;
+        node.rhs->accept(*this);
+        auto right = current_type;
+
+        // оба операнда должны быть арифметическими
+        if (!dynamic_cast<Arithmetic*>(left.get()) ||
+            !dynamic_cast<Arithmetic*>(right.get())) {
+            throw SemanticException("binary comparison requires arithmetic types");
+        }
+        // результат сравнения всегда bool
+        current_type = Analyzer::default_types.at("bool");
         return;
     }
 
@@ -481,12 +497,19 @@ void Analyzer::visit(PostfixDecrementExpression& node) {
     VISIT_BODY_END
 }
 
+
 void Analyzer::visit(FunctionCallExpression& node) {
     VISIT_BODY_BEGIN
+
     std::vector<std::shared_ptr<Type>> arg_types;
+
     for (auto& arg : node.args) {
         arg->accept(*this);
-        arg_types.push_back(current_type);
+        // --- снятие константной обёртки: если аргумент ConstType, берем его базу
+        auto at = current_type;
+        if (auto cp = dynamic_cast<ConstType*>(at.get()))
+            at = cp->get_base();
+        arg_types.push_back(at);
     }
 
     std::shared_ptr<FuncType> func_t;
@@ -503,7 +526,12 @@ void Analyzer::visit(FunctionCallExpression& node) {
         if (params.size() != arg_types.size())
             throw SemanticException("argument count mismatch");
         for (size_t i = 0; i < arg_types.size(); ++i) {
-            if (!arg_types[i]->equals(params[i]))
+            // тоже сравниваем без учёта константности
+            auto lhs = arg_types[i];
+            auto rhs = params[i];
+            if (auto cp = dynamic_cast<ConstType*>(lhs.get()))
+                lhs = cp->get_base();
+            if (!lhs->equals(rhs))
                 throw SemanticException("argument type mismatch");
         }
     }
@@ -511,6 +539,8 @@ void Analyzer::visit(FunctionCallExpression& node) {
     current_type = func_t->get_returnable_type();
     VISIT_BODY_END
 }
+
+
 
 void Analyzer::visit(SubscriptExpression& node) {
     VISIT_BODY_BEGIN

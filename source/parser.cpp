@@ -185,29 +185,41 @@ parameter_declaration Parser::parse_parameter_declaration() {
 }
 
 
-var_declaration Parser::parse_var_declaration() { //maybe rework
+var_declaration Parser::parse_var_declaration() {
     bool is_const = false;
-
-
-    if(match_token(TokenType::CONST)){
+    if (match_token(TokenType::CONST)) {
         is_const = true;
     }
 
     
+    bool is_auto = false;
     std::string type;
-    if (check_token(TokenType::TYPE)) {
-        type = extract_token(TokenType::TYPE);
-    } else if (check_token(TokenType::ID)) {
-        type = extract_token(TokenType::ID);
-        
-    } else {
-        throw std::runtime_error("Var : expected type or identifier, but got " + tokens[offset].value);
+    if (check_token(TokenType::TYPE) && tokens[offset].value == "auto") {
+        is_auto = true;
+        type    = extract_token(TokenType::TYPE);   // вытянем "auto"
+    }
+    else if (check_token(TokenType::TYPE)) {
+        type = extract_token(TokenType::TYPE);      // "int", "float" и т.п.
+    }
+    else if (check_token(TokenType::ID)) {
+        type = extract_token(TokenType::ID);        // имя структуры/класса
+    }
+    else {
+        throw std::runtime_error("Var : expected 'auto', type or identifier, but got " 
+                                 + tokens[offset].value);
     }
 
     std::vector<std::shared_ptr<Declaration::InitDeclarator>> declarator_list;
 
+
     while (true) {
-        declarator_list.push_back(parse_init_declarator());
+        
+        auto init_decl = parse_init_declarator();
+        if (is_auto && !init_decl->initializer) {
+            throw std::runtime_error("auto declaration requires initializer");
+        }
+        declarator_list.push_back(init_decl);
+
         if (match_token(TokenType::COMMA)) {
             continue;
         } else if (match_token(TokenType::SEMICOLON)) {
@@ -219,6 +231,7 @@ var_declaration Parser::parse_var_declaration() { //maybe rework
 
     return std::make_shared<VarDeclaration>(is_const, type, declarator_list);
 }
+
 
 init_declarator Parser::parse_init_declarator() {
 

@@ -282,7 +282,7 @@ void Lexer::print_tokens(const std::vector<Token>& tokens) {
     }
 }
 
-std::set<std::string> Lexer::types = {"int", "float", "double", "char", "bool", "size_t", "void"};
+std::set<std::string> Lexer::types = {"int", "float", "double", "char", "bool", "size_t", "void", "auto"};
 std::unordered_map<std::string, TokenType> Lexer::operators = {
     {"::",TokenType::SCOPE},
     {"+", TokenType::PLUS},
