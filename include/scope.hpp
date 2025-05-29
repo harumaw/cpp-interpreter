@@ -29,6 +29,7 @@ public:
     bool has_variable(const std::string& name) const;
     bool has_variable_current(const std::string& name) const;
     bool has_struct(const std::string& name) const;
+    bool has_struct_current(const std::string& name) const;
     bool has_namespace(const std::string& name) const;
     bool has_function(const std::string& name, const std::vector<std::shared_ptr<Type>>& args) const;
 

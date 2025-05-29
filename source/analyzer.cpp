@@ -180,62 +180,89 @@ void Analyzer::visit(FuncDeclaration& node) {
 
 
 
+void Analyzer::visit(StructDeclaration& node) {
+    VISIT_BODY_BEGIN
 
- void Analyzer::visit(StructDeclaration& node) {
-     VISIT_BODY_BEGIN
+    // redeclaration-check: только текущий скоуп
+    if (scope->has_struct_current(node.name)) {
+        throw SemanticException("struct already declared: " + node.name);
+    }
 
-     if (scope->has_variable(node.name)) {
-         throw SemanticException("struct already declared: " + node.name);
-     }
+    if (node.members.empty()) {
+        throw SemanticException("struct must have at least one member: " + node.name);
+    }
 
-
-    std::unordered_map<std::string, std::shared_ptr<Type>>  data_members;
+    // соберём отдельно поля и методы
+    std::unordered_map<std::string, std::shared_ptr<Type>> data_members;
     std::unordered_map<std::string, std::shared_ptr<FuncType>> methods;
 
-     if (node.members.empty()) {
-         throw SemanticException("struct must have at least one member: " + node.name);
-     }
-
-     for (auto& m : node.members) {
+    for (auto& m : node.members) {
         if (auto fld = dynamic_cast<VarDeclaration*>(m.get())) {
-            // поле
+            // -- поле --
             fld->accept(*this);
             const auto& fname = fld->declarator_list[0]->declarator->name;
-            if (data_members.count(fname))
-                throw SemanticException("duplicate struct member: " + fname + " in struct " + node.name);
+            if (data_members.count(fname)) {
+                throw SemanticException("duplicate struct member: " + fname
+                                        + " in struct " + node.name);
+            }
             data_members[fname] = current_type;
 
         } else if (auto mtd = dynamic_cast<FuncDeclaration*>(m.get())) {
-            // метод: рассчитываем его тип, но пока не открываем новый scope
-            // 1) возвращаемый тип
+            // -- метод --
+            // 1) определяем возвращаемый тип, снимая лидирующий const если есть
             auto m_ret = get_type(mtd->type);
             if (mtd->is_const)
                 m_ret = std::make_shared<ConstType>(m_ret);
-            // 2) аргументы
+
+            // 2) собираем типы аргументов
             std::vector<std::shared_ptr<Type>> m_args;
             for (auto& p : mtd->args) {
                 auto at = get_type(p->type);
+                // принимаем в current_type
                 p->init_declarator->declarator->accept(*this);
                 m_args.push_back(current_type);
             }
-            // 3) строим FuncType с флагом mtd->is_readonly
+
+            // 3) создаём FuncType с флагом метода-const
             auto m_ft = std::make_shared<FuncType>(m_ret, m_args, mtd->is_readonly);
             const auto& mname = mtd->declarator->name;
-            if (methods.count(mname))
-                throw SemanticException("duplicate struct method: " + mname + " in struct " + node.name);
+            if (methods.count(mname)) {
+                throw SemanticException("duplicate struct method: " + mname
+                                        + " in struct " + node.name);
+            }
             methods[mname] = m_ft;
 
+            // ----- далее проверяем тело метода -----
+            // ожидаемый тип возвращаемого значения
+            return_type_stack.push_back(m_ret);
+            // новый вложенный скоуп для метода
+            auto saved_scope = scope;
+            scope = scope->create_new_table(scope, mtd->body);
+            // регистрируем параметры как локальные переменные
+            for (size_t i = 0; i < mtd->args.size(); ++i) {
+                const auto& pname = mtd->args[i]->init_declarator->declarator->name;
+                scope->push_variable(pname, m_args[i]);
+            }
+            // анализ тела
+            mtd->body->accept(*this);
+            // восстанавливаем
+            scope = saved_scope;
+            return_type_stack.pop_back();
+
         } else {
-            throw SemanticException("invalid struct member declaration in struct " + node.name);
+            throw SemanticException("invalid struct member declaration in struct "
+                                    + node.name);
         }
     }
+
+    // создаём сам StructType и помещаем в scope
     auto st = std::make_shared<StructType>(std::move(data_members),
                                            std::move(methods));
+    scope->push_struct(node.name, st);
+    current_type = st;
 
-     scope->push_struct(node.name, st);
-     current_type = st;
-     VISIT_BODY_END
- }
+    VISIT_BODY_END
+}
 
 
 void Analyzer::visit(ArrayDeclaration& node) {
@@ -406,13 +433,7 @@ void Analyzer::visit(BinaryOperation& node) {
         return;
     }
 
-    if (node.op == "<" || node.op == ">" || node.op == "<=" || node.op == ">=" || node.op == "=="|| node.op == "!=") {
-        node.lhs->accept(*this);
-        node.rhs->accept(*this);
-        // проверили бы, что оба – арифметика, как сейчас
-        current_type = Analyzer::default_types.at("bool");
-        return;
-    }
+    
 
     node.lhs->accept(*this);
     auto left = current_type;

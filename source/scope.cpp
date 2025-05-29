@@ -108,6 +108,10 @@ bool Scope::has_variable_current(const std::string& name) const {
     return variables.find(name) != variables.end();
 }
 
+bool Scope::has_struct_current(const std::string& name) const {
+    return structs.find(name) != structs.end();
+}
+
 bool Scope::has_variable(const std::string& name) const {
         // 1) сначала в этом скоупе
     if (variables.find(name) != variables.end())
