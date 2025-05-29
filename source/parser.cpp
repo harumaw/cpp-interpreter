@@ -39,7 +39,8 @@ declaration Parser::parse_declaration() {
     if(match_token(TokenType::NAMESPACE)){
         return parse_namespace_declaration();
     }
-    else if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
+    else if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)
+            || match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
         return parse_function_declaration();
     }
     else if(match_pattern(TokenType::TYPE, TokenType::ID, TokenType::INDEX_LEFT)){
@@ -47,6 +48,7 @@ declaration Parser::parse_declaration() {
 
     }
     else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID) || match_pattern(TokenType::ID, TokenType::ID) || match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::ID)) {
+        
         return parse_var_declaration();
     }
     else if (match_pattern(TokenType::STRUCT, TokenType::ID)) {
@@ -79,13 +81,13 @@ struct_declaration Parser::parse_struct_declaration() {
     extract_token(TokenType::ID);
     
 
-    std::vector<std::shared_ptr<VarDeclaration>> members;
+    std::vector<std::shared_ptr<Declaration>> members;
 
  
     extract_token(TokenType::BRACE_LEFT);  
     
     while (!check_token(TokenType::BRACE_RIGHT)) {
-        auto field = parse_var_declaration();
+        auto field = parse_declaration();
         members.push_back(field); // ispravit
     }
     
@@ -97,8 +99,15 @@ struct_declaration Parser::parse_struct_declaration() {
 
 
 func_declaration Parser::parse_function_declaration() {
+    bool is_const = false;
+    if(match_token(TokenType::CONST)){
+        is_const = true;
+    }
+
+
     auto type = extract_token(TokenType::TYPE);
     auto declarator = parse_declarator();
+
     
     extract_token(TokenType::PARENTHESIS_LEFT);
     
@@ -121,13 +130,19 @@ func_declaration Parser::parse_function_declaration() {
     }
 
 
+    bool is_readonly = false;
+    if(match_token(TokenType::CONST)){
+        is_readonly = true;
+    }
+
+
     std::shared_ptr<CompoundStatement> body;
     if (match_token(TokenType::BRACE_LEFT)) {
         body = parse_compound_statement();
     } else if (!match_token(TokenType::SEMICOLON)) {
         throw std::runtime_error("Unexpected token");
     }
-    return std::make_shared<FuncDeclaration>(type, declarator, args, body);
+    return std::make_shared<FuncDeclaration>(is_const, type, declarator, is_readonly, args, body);
 }
 
 
@@ -174,7 +189,6 @@ var_declaration Parser::parse_var_declaration() { //maybe rework
     bool is_const = false;
 
 
-    std::cout << "test";
     if(match_token(TokenType::CONST)){
         is_const = true;
     }

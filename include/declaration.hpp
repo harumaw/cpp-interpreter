@@ -38,8 +38,8 @@ struct Declaration::InitDeclarator {
 };
 
 struct VarDeclaration: public Declaration {
-	bool is_const = false;
-	std::string type; // change
+	bool is_const = false; // std::vector<std::string> modifiers
+	std::string type;
 	std::vector<std::shared_ptr<InitDeclarator>> declarator_list;
 
 	VarDeclaration(bool is_const, const std::string&, const std::vector<std::shared_ptr<InitDeclarator>>&);
@@ -55,13 +55,18 @@ struct ParameterDeclaration: public Declaration {
 };
 
 struct FuncDeclaration: public Declaration {
+	bool is_const = false; //std::vector<std::string> modifiers
 	std::string type;
 	std::shared_ptr<Declarator> declarator;
+	bool is_readonly = false;
 	std::vector<std::shared_ptr<ParameterDeclaration>> args;
 	std::shared_ptr<CompoundStatement> body;
 
-	FuncDeclaration(const std::string&,
+	FuncDeclaration(
+					bool is_const,
+					const std::string&,
 					const std::shared_ptr<Declarator>&,
+					bool is_readonly,
 					const std::vector<std::shared_ptr<ParameterDeclaration>>&,
 					const std::shared_ptr<CompoundStatement>&
 					);
@@ -71,9 +76,9 @@ struct FuncDeclaration: public Declaration {
 
 struct StructDeclaration: public Declaration {
 	std::string name;
-	std::vector<std::shared_ptr<VarDeclaration>> members;
+	std::vector<std::shared_ptr<Declaration>> members;
 	StructDeclaration(const std::string& name, 
-						const std::vector<std::shared_ptr<VarDeclaration>>& members);
+						const std::vector<std::shared_ptr<Declaration>>& members);
 
 	void accept(Visitor&) override;
 

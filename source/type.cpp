@@ -66,8 +66,8 @@ bool StringType::equals(const std::shared_ptr<Type>& other) const {
     return dynamic_cast<StringType*>(other.get()) != nullptr;
 }
 
-FuncType::FuncType(std::shared_ptr<Type> return_type, std::vector<std::shared_ptr<Type>> args)
-    : returnable_type(std::move(return_type)), args(std::move(args)) {}
+FuncType::FuncType(std::shared_ptr<Type> return_type, std::vector<std::shared_ptr<Type>> args, bool is_method_c)
+    : returnable_type(std::move(return_type)), args(std::move(args)), is_method_c(is_method_c) {}
 
 std::shared_ptr<Type> FuncType::get_returnable_type() const {
     return returnable_type;
@@ -76,6 +76,13 @@ std::shared_ptr<Type> FuncType::get_returnable_type() const {
 std::vector<std::shared_ptr<Type>> FuncType::get_args() const {
     return args;
 }
+
+
+bool FuncType::is_method_const() {
+    return is_method_c;
+}
+
+
 
 bool FuncType::equals(const std::shared_ptr<Type>& other) const {
     auto o = dynamic_cast<FuncType*>(other.get());
@@ -86,8 +93,8 @@ bool FuncType::equals(const std::shared_ptr<Type>& other) const {
     return true;
 }
 
-StructType::StructType(const std::unordered_map<std::string, std::shared_ptr<Type>>& members)
-    : members(members) {}
+StructType::StructType(const std::unordered_map<std::string, std::shared_ptr<Type>>& members, const std::unordered_map<std::string, std::shared_ptr<FuncType>>& methods)
+    : members(members), methods(methods) {}
 
 std::unordered_map<std::string, std::shared_ptr<Type>> StructType::get_members() const {
     return members;
@@ -102,6 +109,10 @@ bool StructType::equals(const std::shared_ptr<Type>& other) const {
     }
     return true;
 }
+
+std::unordered_map<std::string, std::shared_ptr<FuncType>> StructType::get_methods() const {
+    return methods;
+}   
 
 PointerType::PointerType(std::shared_ptr<Type> base) : base(std::move(base)) {}
 

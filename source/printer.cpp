@@ -55,7 +55,7 @@ void Printer::visit(Declaration::InitDeclarator& node) {
 
 void Printer::visit(VarDeclaration& node) {
     indent();
-   std::cout << "VarDeclaration: "
+    std::cout << "VarDeclaration: "
               << (node.is_const ? "const " : "")
               << node.type << "\n";
 
@@ -76,7 +76,8 @@ void Printer::visit(ParameterDeclaration& node) {
 
 void Printer::visit(FuncDeclaration& node) {
     indent();
-    std::cout << "FuncDeclaration: " << node.type << "\n";
+    std::cout << "FuncDeclaration: "
+              << (node.is_const ? "const " : "") << node.type << "\n";
     ++indent_level;
     node.declarator->accept(*this);
     std::cout << "\n";

@@ -30,11 +30,12 @@ public:
     bool has_struct(const std::string& name) const;
     bool has_namespace(const std::string& name) const;
     bool has_function(const std::string& name, const std::vector<std::shared_ptr<Type>>& args) const;
+
 private:
     std::shared_ptr<Scope> prev_table;
     std::shared_ptr<ASTNode> node;
 
-    std::unordered_map<std::string, std::shared_ptr<Type>> variables;
+    std::unordered_map<std::string, std::shared_ptr<Type>> variables; // std::shared_ptr<Symbol> нужно переделать под symboltable
     std::unordered_map<std::string, std::shared_ptr<Type>> structs;
     std::unordered_map<std::string, std::shared_ptr<Scope>> namespaces;
     std::multimap<std::string, std::shared_ptr<FuncType>> functions;

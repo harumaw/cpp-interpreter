@@ -352,7 +352,9 @@ std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"sizeof", TokenType::SIZEOF},
     {"static_assert", TokenType::STATICASSERT},
     {"namespace", TokenType::NAMESPACE},
-    {"const", TokenType::CONST}
+    {"const", TokenType::CONST},
+    {"constexpr", TokenType::CONSTEXPR}
 };
 
 
+    

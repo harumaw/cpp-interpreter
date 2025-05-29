@@ -32,11 +32,13 @@ void VarDeclaration::accept(Visitor& visitor) {
 }
 
 FuncDeclaration::FuncDeclaration(
+	bool is_const,
 	const std::string& type,
 	const std::shared_ptr<Declarator>& declarator,
+	bool is_readonly,
 	const std::vector<std::shared_ptr<ParameterDeclaration>>& args,
 	const std::shared_ptr<CompoundStatement>& body
-	) : type(type), declarator(declarator), args(args), body(body) {}
+	) : is_const(is_const), type(type), declarator(declarator), is_readonly(is_readonly), args(args), body(body) {}
 
 void FuncDeclaration::accept(Visitor& visitor) {
 	visitor.visit(*this);
@@ -53,7 +55,7 @@ void ParameterDeclaration::accept(Visitor& visitor) {
 
 StructDeclaration:: StructDeclaration 
     (const std::string& name, 
-                      const std::vector<std::shared_ptr<VarDeclaration>>& members)
+                      const std::vector<std::shared_ptr<Declaration>>& members)
         : name(name), members(members) {}
 
 void StructDeclaration::accept(Visitor& visitor) {

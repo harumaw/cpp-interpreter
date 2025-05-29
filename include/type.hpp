@@ -7,6 +7,34 @@
 
 #include "expression.hpp"
 
+
+
+
+
+/*
+Type
+├─ Fundamental
+│   ├─ VoidType
+│   ├─ NullPtrType
+│   ├─ Arithmetic
+│   │   ├─ Integral
+│   │   │   ├─ BoolType
+│   │   │   ├─ CharType
+│   │   │   └─ IntegerType
+│   │   └─ FloatType
+│   └─ StringType
+└─ Composite
+    ├─ FuncType
+    ├─ Record
+    │   └─ StructType
+    ├─ PointerType
+    ├─ RefType
+    │   ├─ LValueType
+    │   └─ RValueType
+    └─ ArrayType
+
+    */
+
 struct Type {   
     virtual ~Type() = default;
     virtual bool equals(const std::shared_ptr<Type>& other) const = 0;
@@ -52,8 +80,10 @@ struct CharType : Integral {
 struct IntegerType : Integral {
     explicit IntegerType(std::any value = int8_t(0));
     bool equals(const std::shared_ptr<Type>& other) const override;
+public:
+    std::any value;
 };
-
+//dobavitb std::any value
 struct FloatType : Arithmetic {
     explicit FloatType(std::any value = 0.0);
     bool equals(const std::shared_ptr<Type>& other) const override;
@@ -74,25 +104,30 @@ private:
 struct Composite : Type {};
 
 struct FuncType : Composite {
-    FuncType(std::shared_ptr<Type> return_type, std::vector<std::shared_ptr<Type>> args);
+    explicit FuncType(std::shared_ptr<Type> return_type, std::vector<std::shared_ptr<Type>> args, bool is_method_c = false);
 
+    
     std::shared_ptr<Type> get_returnable_type() const;
     std::vector<std::shared_ptr<Type>> get_args() const;
     bool equals(const std::shared_ptr<Type>& other) const override;
+    bool is_method_const();
 
 private:
     std::shared_ptr<Type> returnable_type;
     std::vector<std::shared_ptr<Type>> args;
+    bool is_method_c;
 };
 
 struct Record : Composite {};
 
 struct StructType : Record {
-    explicit StructType(const std::unordered_map<std::string, std::shared_ptr<Type>>& members);
+    explicit StructType(const std::unordered_map<std::string, std::shared_ptr<Type>>& members, const std::unordered_map<std::string, std::shared_ptr<FuncType>>& methods);
     std::unordered_map<std::string, std::shared_ptr<Type>> get_members() const;
     bool equals(const std::shared_ptr<Type>& other) const override;
+    std::unordered_map<std::string, std::shared_ptr<FuncType>> get_methods() const;
 
 private:
+    std::unordered_map<std::string, std::shared_ptr<FuncType>> methods;
     std::unordered_map<std::string, std::shared_ptr<Type>> members;
 };
 

@@ -126,7 +126,12 @@ void Analyzer::visit(FuncDeclaration& node) {
     VISIT_BODY_BEGIN
 
     // определяем возвращаемый тип функции
-    auto return_t = get_type(node.type);
+
+   auto return_t = get_type(node.type);
+   // если лидирующий const, оборачиваем в ConstType
+   if (node.is_const) {
+       return_t = std::make_shared<ConstType>(return_t); // ← добавлено
+   }
 
     // собираем типы параметров
     std::vector<std::shared_ptr<Type>> arg_types;
@@ -141,8 +146,9 @@ void Analyzer::visit(FuncDeclaration& node) {
         throw SemanticException("function already declared: " + node.declarator->name);
     }
 
-    // регистрируем новую функцию в текущем скоупе
-    auto func_t = std::make_shared<FuncType>(return_t, arg_types);
+   // передаём флаг трейлинг-const (node.is_readonly)
+   auto func_t = std::make_shared<FuncType>(return_t, arg_types, node.is_readonly);
+
     scope->push_func(node.declarator->name, func_t);
 
     // сохраняем ожидаемый возвращаемый тип в стек
@@ -160,7 +166,6 @@ void Analyzer::visit(FuncDeclaration& node) {
         scope->push_variable(pname, arg_types[i]);
     }
 
-
     node.body->accept(*this);
 
     // выходим из скоупа и восстанавливаем предыдущий ожидаемый тип
@@ -173,34 +178,64 @@ void Analyzer::visit(FuncDeclaration& node) {
     VISIT_BODY_END
 }
 
-void Analyzer::visit(StructDeclaration& node) {
-    VISIT_BODY_BEGIN
 
-    if (scope->has_variable(node.name)) {
-        throw SemanticException("struct already declared: " + node.name);
-    }
-    std::unordered_map<std::string, std::shared_ptr<Type>> members;
-    if (node.members.empty()) {
-        throw SemanticException("struct must have at least one member: " + node.name);
-    }
-    for (auto& m : node.members) {
-        m->accept(*this);
-        const auto& name = m->declarator_list[0]->declarator->name;
-        if (members.count(name)) {
-            throw SemanticException("duplicate struct member: " + name + " in struct " + node.name);
+
+
+ void Analyzer::visit(StructDeclaration& node) {
+     VISIT_BODY_BEGIN
+
+     if (scope->has_variable(node.name)) {
+         throw SemanticException("struct already declared: " + node.name);
+     }
+
+
+    std::unordered_map<std::string, std::shared_ptr<Type>>  data_members;
+    std::unordered_map<std::string, std::shared_ptr<FuncType>> methods;
+
+     if (node.members.empty()) {
+         throw SemanticException("struct must have at least one member: " + node.name);
+     }
+
+     for (auto& m : node.members) {
+        if (auto fld = dynamic_cast<VarDeclaration*>(m.get())) {
+            // поле
+            fld->accept(*this);
+            const auto& fname = fld->declarator_list[0]->declarator->name;
+            if (data_members.count(fname))
+                throw SemanticException("duplicate struct member: " + fname + " in struct " + node.name);
+            data_members[fname] = current_type;
+
+        } else if (auto mtd = dynamic_cast<FuncDeclaration*>(m.get())) {
+            // метод: рассчитываем его тип, но пока не открываем новый scope
+            // 1) возвращаемый тип
+            auto m_ret = get_type(mtd->type);
+            if (mtd->is_const)
+                m_ret = std::make_shared<ConstType>(m_ret);
+            // 2) аргументы
+            std::vector<std::shared_ptr<Type>> m_args;
+            for (auto& p : mtd->args) {
+                auto at = get_type(p->type);
+                p->init_declarator->declarator->accept(*this);
+                m_args.push_back(current_type);
+            }
+            // 3) строим FuncType с флагом mtd->is_readonly
+            auto m_ft = std::make_shared<FuncType>(m_ret, m_args, mtd->is_readonly);
+            const auto& mname = mtd->declarator->name;
+            if (methods.count(mname))
+                throw SemanticException("duplicate struct method: " + mname + " in struct " + node.name);
+            methods[mname] = m_ft;
+
+        } else {
+            throw SemanticException("invalid struct member declaration in struct " + node.name);
         }
-
-        if (!current_type) {
-            throw SemanticException("unknown type for struct member: " + name + " in struct " + node.name);
-        }
-
-        members[name] = current_type;
     }
-    auto st = std::make_shared<StructType>(members);
-    scope->push_struct(node.name, st);
-    current_type = st;
-    VISIT_BODY_END
-}
+    auto st = std::make_shared<StructType>(std::move(data_members),
+                                           std::move(methods));
+
+     scope->push_struct(node.name, st);
+     current_type = st;
+     VISIT_BODY_END
+ }
 
 
 void Analyzer::visit(ArrayDeclaration& node) {
@@ -299,19 +334,49 @@ void Analyzer::visit(ForStatement& node) {
     VISIT_BODY_END
 }
 
-void Analyzer::visit(ReturnStatement& node) { //maybe rework
+void Analyzer::visit(ReturnStatement& node) {
     VISIT_BODY_BEGIN
+
     if (return_type_stack.empty())
         throw SemanticException("return outside of function");
 
+    // забираем заявленный для функции тип
+    auto declared = return_type_stack.back();
+
+    // снимаем верхний const, если он есть
+    std::shared_ptr<Type> declared_base = declared;
+    if (auto cp = dynamic_cast<ConstType*>(declared.get()))
+        declared_base = cp->get_base();
+
     if (node.expression) {
+        // анализируем само выражение
         node.expression->accept(*this);
-        if (!current_type->equals(return_type_stack.back()))
-            throw SemanticException("return type mismatch");
+        auto expr_t = current_type;
+
+        // снимаем const-обёртку с выражения
+        std::shared_ptr<Type> expr_base = expr_t;
+        if (auto cp = dynamic_cast<ConstType*>(expr_t.get()))
+            expr_base = cp->get_base();
+
+        // проверяем, можно ли нестрого вернуть expr_base в declared_base
+        bool ok_same    = expr_base->equals(declared_base);
+        bool ok_numeric = dynamic_cast<Arithmetic*>(expr_base.get())
+                       && dynamic_cast<Arithmetic*>(declared_base.get());
+
+        if (!ok_same && !ok_numeric) {
+               throw SemanticException("return type mismatch");
+        }
+
+        // приводим текущий тип к типу функции
+        current_type = declared_base;
+
     } else {
-        if (!dynamic_cast<VoidType*>(return_type_stack.back().get()))
+        // void-функция не должна возвращать значение
+        if (!dynamic_cast<VoidType*>(declared_base.get()))
             throw SemanticException("non-void function must return a value");
+        current_type = declared_base;
     }
+
     VISIT_BODY_END
 }
 
@@ -504,19 +569,26 @@ void Analyzer::visit(StructMemberAccessExpression& node) {
     node.base->accept(*this);
     // проверяем, что это действительно StructType
     auto struct_t = std::dynamic_pointer_cast<StructType>(current_type);
-    if (!struct_t) {
-        throw SemanticException("expression is not a struct");
+  if (!struct_t) {
+         throw SemanticException("expression is not a struct");
+     }
+     auto members = struct_t->get_members();
+     auto it = members.find(node.member);
+     if (it != members.end()) {
+         // это поле
+         current_type = it->second;
+        return;
     }
-    // достаём мапу полей
-    auto members = struct_t->get_members();
-    // ищем нужное имя
-    auto it = members.find(node.member);
-    if (it == members.end()) {
-        throw SemanticException("struct does not have member: " + node.member);
+    // а может быть метод?
+    const auto& methods = struct_t->get_methods();
+    auto mit = methods.find(node.member);
+    if (mit != methods.end()) {
+        current_type = mit->second;
+        return;
     }
-    // результатом обращения становится тип этого поля
-    current_type = it->second;
-    VISIT_BODY_END
+
+     throw SemanticException("struct does not have member: " + node.member);
+     VISIT_BODY_END
 }
 
 void Analyzer::visit(SizeOfExpression& node) {
@@ -618,4 +690,3 @@ bool Analyzer::evaluateConstant(ASTNode* expr) {
 // strogaya
 // 2 tip poka ssylki v const i td
 // 3
-//
