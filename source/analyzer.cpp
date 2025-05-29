@@ -406,6 +406,14 @@ void Analyzer::visit(BinaryOperation& node) {
         return;
     }
 
+    if (node.op == "<" || node.op == ">" || node.op == "<=" || node.op == ">=" || node.op == "=="|| node.op == "!=") {
+        node.lhs->accept(*this);
+        node.rhs->accept(*this);
+        // проверили бы, что оба – арифметика, как сейчас
+        current_type = Analyzer::default_types.at("bool");
+        return;
+    }
+
     node.lhs->accept(*this);
     auto left = current_type;
     node.rhs->accept(*this);
