@@ -99,7 +99,7 @@ void Analyzer::visit(VarDeclaration& node) {
         current_type = declared;
         decl->declarator->accept(*this);
         const auto& name = decl->declarator->name;
-        if (scope->has_variable(name))
+        if (scope->has_variable_current(name))
             throw SemanticException("variable already declared: " + name);
         scope->push_variable(name, current_type);
         if (decl->initializer)
@@ -114,7 +114,7 @@ void Analyzer::visit(ParameterDeclaration& node) {
     current_type = declared;
     node.init_declarator->declarator->accept(*this);
     const auto& name = node.init_declarator->declarator->name;
-    if (scope->has_variable(name))
+    if (scope->has_variable_current(name))
         throw SemanticException("parameter already declared: " + name);
     scope->push_variable(name, current_type);
     if (node.init_declarator->initializer)

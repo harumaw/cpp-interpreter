@@ -32,14 +32,28 @@ std::shared_ptr<Type> Scope::match_variable(const std::string& name) {
     throw std::runtime_error("Variable not found: " + name);
 }
 
+
+
+
 std::shared_ptr<Type> Scope::match_struct(const std::string& name) {
-    auto it = structs.find(name);
-    if (it != structs.end()) {
+
+    if (auto it = structs.find(name); it != structs.end())
         return it->second;
-    }
+
+    // 2) родительский
     if (prev_table) {
-        return prev_table->match_struct(name);
+        try {
+            return prev_table->match_struct(name);
+        } catch (...) {}
     }
+
+    // 3) пространства имён
+    for (auto& [ns_name, ns_scope] : namespaces) {
+        try {
+            return ns_scope->match_struct(name);
+        } catch (...) {}
+    }
+
     throw std::runtime_error("Struct not found: " + name);
 }
 
@@ -90,13 +104,43 @@ void Scope::push_struct(const std::string& name, std::shared_ptr<Type> type) {
 void Scope::push_func(const std::string& name, std::shared_ptr<FuncType> func) {
     functions.emplace(name, std::move(func));
 }
-
-bool Scope::has_variable(const std::string& name) const {
+bool Scope::has_variable_current(const std::string& name) const {
     return variables.find(name) != variables.end();
 }
 
+bool Scope::has_variable(const std::string& name) const {
+        // 1) сначала в этом скоупе
+    if (variables.find(name) != variables.end())
+        return true;
+
+    // 2) затем в родительском скоупе
+    if (prev_table && prev_table->has_variable(name))
+        return true;
+
+    // 3) затем в каждом вложенном namespace
+    for (auto& [ns_name, ns_scope] : namespaces) {
+        if (ns_scope->has_variable(name))
+            return true;
+    }
+
+    // не найдено
+    return false;
+}
+
 bool Scope::has_struct(const std::string& name) const {
-    return structs.find(name) != structs.end();
+     // 1) сначала в этом скоупе
+    if (structs.find(name) != structs.end())
+        return true;
+    // 2) затем в родительском
+    if (prev_table && prev_table->has_struct(name))
+        return true;
+    // 3) затем во всех вложенных namespace
+    for (auto& [ns_name, ns_scope] : namespaces) {
+        if (ns_scope->has_struct(name))
+            return true;
+    }
+    // не нашли ни в одном месте
+    return false;
 }
 
 bool Scope::has_namespace(const std::string& name) const {
