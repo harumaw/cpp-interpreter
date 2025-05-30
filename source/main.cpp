@@ -18,7 +18,7 @@ int main() {
         std::cout << "parser end\n";
 
         
-       /* Analyzer analyzer;
+       Analyzer analyzer;
         analyzer.analyze(*translation_unit);
         std::cout << "analyzer end\n";
         const auto& errors = analyzer.getErrors();
@@ -29,7 +29,7 @@ int main() {
             }
             return 2;  
         }
-            */
+            
         
       
         Printer printer;

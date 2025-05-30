@@ -30,11 +30,18 @@ std::shared_ptr<Type> compareRank(const std::shared_ptr<Type>& lhs, const std::s
 
 
 bool canConvert(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
-    if (from->equals(to)) return true;
+    auto strip = [](std::shared_ptr<Type> t){
+        if (auto cp = dynamic_cast<ConstType*>(t.get()))
+            return cp->get_base();
+        return t;
+    };
+    auto f = strip(from);
+    auto tt = strip(to);
 
-    if(dynamic_cast<Arithmetic*>(from.get()) && dynamic_cast<Arithmetic*>(to.get())) {
-        return true; // арифметические типы могут быть приведены друг к другу
-    }
+    if (f->equals(tt)) return true;
+    // арифметика тоже может конвертироваться
+    if (dynamic_cast<Arithmetic*>(f.get()) && dynamic_cast<Arithmetic*>(tt.get()))
+        return true;
     return false;
 }
 
@@ -261,7 +268,7 @@ void Analyzer::visit(StructDeclaration& node) {
     }
 
     // 3c) Регистрируем RecordSymbol
-    auto struct_sym = std::make_shared<RecordSymbol>(
+    auto struct_sym = std::make_shared<StructSymbol>(
         struct_type,
         std::move(member_symbols)
     );
