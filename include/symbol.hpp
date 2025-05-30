@@ -1,32 +1,66 @@
+#pragma once
+#include <memory>
+#include <string>
+#include <unordered_map>
 #include "type.hpp"
+#include "scope.hpp"
+
+
+struct Scope;
 
 struct Symbol {
     std::shared_ptr<Type> type;
-
-};
-// ta zhe structura kak v type
-struct IntegerSymbol : public Symbol {
-    int value;
-
-    IntegerSymbol(int v) : value(v) {}
+    Symbol(std::shared_ptr<Type> t) : type(std::move(t)) {}
+    virtual ~Symbol() = default;
 };
 
-struct FloatSymbol : public Symbol {
-    float value;
+struct VarSymbol : Symbol {
+    VarSymbol(std::shared_ptr<Type> t)
+      : Symbol(std::move(t)) {}
 
-    FloatSymbol(float v) : value(v) {}
+    VarSymbol(std::shared_ptr<Type> t, std::any v) : Symbol(std::move(t)), value(std::move(v)) {}
+
+    std::any value;
 };
 
-struct StringSymbol : public Symbol {
-    std::string value;
+struct FuncSymbol : Symbol {
+    std::vector<std::shared_ptr<Type>> params;
+    bool isConstMethod = false;
 
-    StringSymbol(const std::string& v) : value(v) {}
+    FuncSymbol(std::shared_ptr<FuncType> ft,
+               std::vector<std::shared_ptr<Type>> p = {},
+               bool constMethod = false)
+      : Symbol(std::move(ft))
+      , params(std::move(p))
+      , isConstMethod(constMethod)
+    {}
 };
 
-struct BoolSymbol : public Symbol {
-    bool value;
 
-    BoolSymbol(bool v) : value(v) {}
+struct RecordSymbol : Symbol {
+    std::unordered_map<std::string, std::shared_ptr<Symbol>> members;
+
+    RecordSymbol(std::shared_ptr<RecordType> rt,
+                 std::unordered_map<std::string, std::shared_ptr<Symbol>> m)
+      : Symbol(std::move(rt))
+      , members(std::move(m))
+    {}
 };
-// symbol - type, value
-// v analizatore nuzhno proveryat type, a v executor value
+
+
+struct StructSymbol : RecordSymbol {
+    StructSymbol(std::shared_ptr<RecordType> rt,
+                 std::unordered_map<std::string, std::shared_ptr<Symbol>> m)
+      : RecordSymbol(std::move(rt), std::move(m))
+    {}
+};
+
+
+struct NamespaceSymbol : RecordSymbol {
+    std::shared_ptr<Scope> scope;
+
+    NamespaceSymbol(std::shared_ptr<Scope> s)
+      : RecordSymbol(nullptr, {})
+      , scope(std::move(s))
+    {}
+};

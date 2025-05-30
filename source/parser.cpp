@@ -25,15 +25,15 @@ std::shared_ptr<TranslationUnit> Parser::parse() {
  
 
 bool Parser::is_type_specifier() {
-     if (check_token(TokenType::CONST))     return true;
+    if (check_token(TokenType::CONST))     return true;
     if (check_token(TokenType::NAMESPACE)) return true;
     if (check_token(TokenType::TYPE)      ||
         check_token(TokenType::STRUCT))   return true;
     if (check_token(TokenType::ID) &&
-        peek_token(1).type == TokenType::ID)
-        return true;
-    return false;
-}
+         peek_token(1).type == TokenType::ID)
+         return true;
+     return false;
+ }
 
 declaration Parser::parse_declaration() {
     if(match_token(TokenType::NAMESPACE)){
@@ -47,7 +47,7 @@ declaration Parser::parse_declaration() {
         return parse_array_declaration();
 
     }
-    else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID) || match_pattern(TokenType::ID, TokenType::ID) || match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::ID)) {
+    else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID) || match_pattern(TokenType::ID, TokenType::ID) || match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::CONST, TokenType::ID, TokenType::ID)) {
         
         return parse_var_declaration();
     }

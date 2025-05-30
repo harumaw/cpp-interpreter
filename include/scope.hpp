@@ -1,44 +1,32 @@
-
 #pragma once
 #include <unordered_map>
 #include <map>
 #include <string>
-#include <memory>
-#include <stdexcept>
+#include <any>
+#include <vector>
 #include "type.hpp"
 #include "ast.hpp"
+#include "symbol.hpp"
 
-class Scope {
+struct Scope {
 public:
-    Scope(std::shared_ptr<Scope> prev_scope, std::shared_ptr<ASTNode> node);
-    std::shared_ptr<Scope> create_new_table(std::shared_ptr<Scope> prev_scope,
-                                            std::shared_ptr<ASTNode> node);
-    std::shared_ptr<Scope> get_prev_table() const;
+    ~Scope() = default;
+    Scope(std::shared_ptr<Scope> get_prev_table);
+    
+    std::shared_ptr<Scope> get_prev_table();
+    std::shared_ptr<Scope> create_new_table(std::shared_ptr<Scope>);
+    
+    std::shared_ptr<Symbol> match_global(std::string);
+    std::shared_ptr<Symbol> match_local(std::string);
+    std::vector<std::shared_ptr<Symbol>> match_range(std::string);
+    bool contains_symbol(std::string);
+    std::multimap<std::string, std::shared_ptr<Symbol>> get_symbols() {
+        return symbolTable;
+    }
 
-    std::shared_ptr<Scope> match_namespace(const std::string& name);
-    std::shared_ptr<Type> match_variable(const std::string& name);
-    std::shared_ptr<Type> match_struct(const std::string& name);
-    std::shared_ptr<FuncType> match_function(const std::string& name,
-                                             const std::vector<std::shared_ptr<Type>>& args);
-
-
-    void push_namespace(const std::string& name, std::shared_ptr<Scope> scope);
-    void push_variable(const std::string& name, std::shared_ptr<Type> type);
-    void push_struct(const std::string& name, std::shared_ptr<Type> type);
-    void push_func(const std::string& name, std::shared_ptr<FuncType> func);
-    bool has_variable(const std::string& name) const;
-    bool has_variable_current(const std::string& name) const;
-    bool has_struct(const std::string& name) const;
-    bool has_struct_current(const std::string& name) const;
-    bool has_namespace(const std::string& name) const;
-    bool has_function(const std::string& name, const std::vector<std::shared_ptr<Type>>& args) const;
-
+    
+    void push_symbol(std::string, std::shared_ptr<Symbol>);
 private:
-    std::shared_ptr<Scope> prev_table;
-    std::shared_ptr<ASTNode> node;
-
-    std::unordered_map<std::string, std::shared_ptr<Type>> variables; // std::shared_ptr<Symbol> нужно переделать под symboltable
-    std::unordered_map<std::string, std::shared_ptr<Type>> structs;
-    std::unordered_map<std::string, std::shared_ptr<Scope>> namespaces;
-    std::multimap<std::string, std::shared_ptr<FuncType>> functions;
+    std::shared_ptr<Scope>prev_table;
+    std::multimap<std::string, std::shared_ptr<Symbol>> symbolTable;
 };
