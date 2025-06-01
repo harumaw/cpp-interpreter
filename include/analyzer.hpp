@@ -81,6 +81,11 @@ public:
 	std::shared_ptr<Scope> scope;
     std::shared_ptr<Type> current_type;
 	std::vector<std::shared_ptr<Type>> return_type_stack;
+
+	bool is_deducing_return = false;
+    std::shared_ptr<Type> deduced_return_type = nullptr;
+
+	
 	bool evaluateConstant(ASTNode*);
 
 	enum class BinaryOp{

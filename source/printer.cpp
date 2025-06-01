@@ -78,6 +78,7 @@ void Printer::visit(FuncDeclaration& node) {
     indent();
     std::cout << "FuncDeclaration: "
               << (node.is_const ? "const " : "") << node.type << "\n";
+    std::cout<< (node.is_readonly ? "readonly " : "");
     ++indent_level;
     node.declarator->accept(*this);
     std::cout << "\n";
@@ -87,6 +88,8 @@ void Printer::visit(FuncDeclaration& node) {
     for (auto& arg : node.args) {
         arg->accept(*this);
     }
+
+    
     --indent_level;
     if (node.body) {
         node.body->accept(*this);

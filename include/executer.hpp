@@ -1,17 +1,22 @@
 #pragma once
+
 #include "visitor.hpp"
-#include "type.hpp"
+#include "symbol.hpp"
 #include "scope.hpp"
 
+#include <any>
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <memory>
 
 class Execute : public Visitor {
 public:
     Execute();
     
-    // entry point: выполнит unit, найдёт функцию main и запустит её
     void execute(TranslationUnit& unit);
 
-    // Visitor-интерфейс
+
     void visit(ASTNode&) override;
     void visit(TranslationUnit& unit) override;
     void visit(Declaration::PtrDeclarator&) override;
@@ -35,7 +40,6 @@ public:
     void visit(ContinueStatement&) override;
     void visit(StructMemberAccessExpression&) override;
     void visit(DoWhileStatement&) override;
-	void visit(StaticAssertStatement&) override;
 
     void visit(BinaryOperation&) override;
     void visit(PrefixExpression&) override;
@@ -46,7 +50,7 @@ public:
     void visit(IntLiteral&) override;
     void visit(FloatLiteral&) override;
     void visit(CharLiteral&) override;
-    void visit(StringLiteral&) override; 
+    void visit(StringLiteral&) override;
     void visit(BoolLiteral&) override;
     void visit(IdentifierExpression&) override;
     void visit(ParenthesizedExpression&) override;
@@ -55,7 +59,25 @@ public:
     void visit(NameSpaceAcceptExpression&) override;
 
 private:
-	std::shared_ptr<Scope> current_scope;
 
+    std::shared_ptr<Scope> scope;
+    using Value = std::any;
 
+    // Стек фреймов: каждый фрейм хранит map<имя_переменной, Value>
+        struct Frame {
+        std::unordered_map<std::string, Value> vars;
+    };
+    std::vector<Frame> call_stack;
+
+    
+    Value current_value;
+
+    bool returned;
+    bool return_triggered;
+    Value return_value;
+    bool break_triggered;
+    bool continue_triggered;
+
+    
+    std::unordered_map<std::string, FuncDeclaration*> functions;
 };

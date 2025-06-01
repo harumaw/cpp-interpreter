@@ -107,26 +107,71 @@ void Analyzer::visit(Declaration::InitDeclarator& node) {
 
 void Analyzer::visit(VarDeclaration& node) {
     VISIT_BODY_BEGIN
-    auto base_t = get_type(node.type);
-    if (node.is_const) base_t = std::make_shared<ConstType>(base_t);
 
+    std::shared_ptr<Type> base_t;
+    bool    deduce_auto = false;
+
+    if (node.type == "auto") {
+        deduce_auto = true;
+
+        // 1) проверяем, что есть хотя бы один инициализатор
+        if (node.declarator_list.empty()) {
+            throw SemanticException("auto-declaration requires at least one declarator");
+        }
+
+        // Вариант СТРОГИЙ: разрешаем только ровно один declarator с инициализатором
+        if (node.declarator_list.size() != 1 ||
+            !node.declarator_list.front()->initializer) 
+        {
+            throw SemanticException("auto-declaration must have exactly one initializer");
+        }
+
+        // 2) Дедуцируем тип из единственного initializer
+        auto& the_decl = node.declarator_list.front();
+        current_type = nullptr;
+        the_decl->initializer->accept(*this);
+        if (!current_type) {
+            throw SemanticException("cannot deduce type for auto");
+        }
+        // Убираем верхний const, если он есть
+        if (auto cp = dynamic_cast<ConstType*>(current_type.get())) {
+            base_t = cp->get_base();
+        } else {
+            base_t = current_type;
+        }
+    }
+    else {
+        // Обычная ветка: тип задаётся явно
+        base_t = get_type(node.type);
+        if (node.is_const) {
+            base_t = std::make_shared<ConstType>(base_t);
+        }
+    }
+
+    // 3) Регистрируем все переменные из списка
     for (auto& decl : node.declarator_list) {
-        const auto& name = decl->declarator->name;
+        const std::string& name = decl->declarator->name;
         if (scope->contains_symbol(name)) {
             throw SemanticException("variable already declared: " + name);
         }
-        // регистрируем переменную
         scope->push_symbol(name, std::make_shared<VarSymbol>(base_t));
 
+        // Если у него есть initializer, проверяем совместимость
         if (decl->initializer) {
-            decl->initializer->accept(*this);
+            if (!deduce_auto) {
+                // Если не auto, то вычисляем RHS здесь
+                decl->initializer->accept(*this);
+            }
+            // Сейчас current_type — тип выражения справа
             if (!canConvert(current_type, base_t)) {
                 throw SemanticException("cannot initialize variable '" + name + "' with given type");
             }
         }
     }
+
     VISIT_BODY_END
 }
+
 
 
 void Analyzer::visit(ParameterDeclaration& node) {
@@ -147,55 +192,107 @@ void Analyzer::visit(ParameterDeclaration& node) {
     VISIT_BODY_END
 }
 
+
 void Analyzer::visit(FuncDeclaration& node) {
     VISIT_BODY_BEGIN
 
-    // 1) Собираем возвращаемый тип
-    auto ret_t = get_type(node.type);
-    if (node.is_const) 
-        ret_t = std::make_shared<ConstType>(ret_t);
+    std::shared_ptr<Type> ret_t;
 
-    // 2) Собираем типы параметров
+    if (node.type == "auto") {
+        // ======== БЛОК СТРОГОЙ ДЕДУКЦИИ «на месте» ========
+        // Сохраним текущее состояние
+
+        auto saved_scope = scope;
+        bool saved_flag = is_deducing_return;
+        auto saved_deduced = deduced_return_type;
+
+        // Включаем режим дедукции
+        is_deducing_return = true;
+        deduced_return_type = nullptr;
+
+        // Создаём временный скоуп для тела функции
+        scope = scope->create_new_table(saved_scope);
+
+        // Регистрируем параметры, чтобы их можно было использовать в return-выражениях
+        std::vector<std::shared_ptr<Type>> arg_ts_for_deduce;
+        for (auto& p : node.args) {
+            auto pt = get_type(p->type);
+            arg_ts_for_deduce.push_back(pt);
+        }
+        for (size_t i = 0; i < node.args.size(); ++i) {
+            const auto& pname = node.args[i]->init_declarator->declarator->name;
+            scope->push_symbol(pname, std::make_shared<VarSymbol>(arg_ts_for_deduce[i]));
+        }
+
+        // Обход тела в режиме дедукции
+        node.body->accept(*this);
+
+        // Если ни одного return с expr не было, считаем void
+        if (!deduced_return_type) {
+            ret_t = Analyzer::default_types.at("void");
+        } else {
+            ret_t = deduced_return_type;
+        }
+
+        // Восстанавливаем старое состояние
+        scope = saved_scope;
+        is_deducing_return = saved_flag;
+        deduced_return_type = saved_deduced;
+        // ======== КОНЕЦ БЛОКА ДЕДУКЦИИ ========
+    }
+    else {
+        // Обычная ветка: явно указанный тип
+        ret_t = get_type(node.type);
+        if (node.is_const) {
+            ret_t = std::make_shared<ConstType>(ret_t);
+        }
+    }
+
+    // Регистрируем функцию в текущем скоупе (с уже известным ret_t)
     std::vector<std::shared_ptr<Type>> arg_ts;
     for (auto& p : node.args) {
         arg_ts.push_back(get_type(p->type));
     }
 
-    // 3) Проверяем повторное объявление (перегрузки не поддерживаем)
     const auto& fname = node.declarator->name;
     if (scope->contains_symbol(fname)) {
         throw SemanticException("function already declared: " + fname);
     }
 
-    // 4) Регистрируем функцию
     auto signature = std::make_shared<FuncType>(ret_t, arg_ts, node.is_readonly);
-    // — а потом создаём FuncSymbol из этой сигнатуры
     scope->push_symbol(
         fname,
-        std::make_shared<FuncSymbol>(signature,
-                                     arg_ts,
-                                     node.is_readonly)
+        std::make_shared<FuncSymbol>(signature, arg_ts, node.is_readonly)
     );
 
-    // (опционально) сохраняем текущий ожидаемый тип для return
+    // ======== Второй проход: валидация тела с известным ret_t ========
     return_type_stack.push_back(ret_t);
+    auto saved_scope2 = scope;
+    scope = scope->create_new_table(saved_scope2);
 
-    // 5) Новый скоуп для тела
-    auto saved = scope;
-    scope = scope->create_new_table(saved);
-
-    // 6) Регистрируем параметры как локальные переменные
+    // Регистрируем параметры как локальные переменные
     for (size_t i = 0; i < node.args.size(); ++i) {
         const auto& pname = node.args[i]->init_declarator->declarator->name;
         scope->push_symbol(pname, std::make_shared<VarSymbol>(arg_ts[i]));
+
+        // Если у параметра есть initializer, проверяем canConvert
+        if (node.args[i]->init_declarator->initializer) {
+            node.args[i]->init_declarator->initializer->accept(*this);
+            if (!canConvert(current_type, arg_ts[i])) {
+                throw SemanticException(
+                    "cannot initialize parameter '" + pname + "' with given type"
+                );
+            }
+        }
     }
 
-    // 7) Анализируем тело
+    // Собственно, полный обход тела с проверками return/других операторов
     node.body->accept(*this);
 
-    // 8) Выход из функции
-    scope = saved;
+    // Восстанавливаем скоуп и удаляем тип из стека
+    scope = saved_scope2;
     return_type_stack.pop_back();
+    // ======== Конец второго прохода ========
 
     VISIT_BODY_END
 }
@@ -399,48 +496,82 @@ void Analyzer::visit(ForStatement& node) {
 void Analyzer::visit(ReturnStatement& node) {
     VISIT_BODY_BEGIN
 
+
+    // Если мы в режиме дедукции, просто собираем типы и строго проверяем совпадение
+    if (is_deducing_return) {
+        if (node.expression) {
+            node.expression->accept(*this);
+            // Убираем const-обёртку, если есть
+            std::shared_ptr<Type> expr_base = current_type;
+            if (auto cp = dynamic_cast<ConstType*>(current_type.get())) {
+                expr_base = cp->get_base();
+            }
+
+            if (!deduced_return_type) {
+                // Первый return — запомним его тип
+                deduced_return_type = expr_base;
+            } else {
+                // Последующие return должны строго совпадать с уже запомненным
+                if (!deduced_return_type->equals(expr_base)) {
+                    throw SemanticException(
+                        "deduced return type  conflicts with type in auto-function"
+                    );
+                }
+            }
+        } else {
+            // «return;» без выражения → void
+            auto voidType = Analyzer::default_types.at("void");
+            if (!deduced_return_type) {
+                deduced_return_type = voidType;
+            } else {
+                // Если уже был какой-то не-void, то конфликт
+                if (!dynamic_cast<VoidType*>(deduced_return_type.get())) {
+                    throw SemanticException(
+                        "deduced return type conflicts with void in auto-function"
+                    );
+                }
+            }
+        }
+        return;
+    }
+
+    // Обычная валидация (не дедукция)
     if (return_type_stack.empty())
         throw SemanticException("return outside of function");
 
-    // забираем заявленный для функции тип
+    // Ожидаемый тип — верхушка стека
     auto declared = return_type_stack.back();
-
-    // снимаем верхний const, если он есть
     std::shared_ptr<Type> declared_base = declared;
-    if (auto cp = dynamic_cast<ConstType*>(declared.get()))
+    if (auto cp = dynamic_cast<ConstType*>(declared.get())) {
         declared_base = cp->get_base();
+    }
 
     if (node.expression) {
-        // анализируем само выражение
         node.expression->accept(*this);
         auto expr_t = current_type;
-
-        // снимаем const-обёртку с выражения
         std::shared_ptr<Type> expr_base = expr_t;
-        if (auto cp = dynamic_cast<ConstType*>(expr_t.get()))
+        if (auto cp = dynamic_cast<ConstType*>(expr_t.get())) {
             expr_base = cp->get_base();
-
-        // проверяем, можно ли нестрого вернуть expr_base в declared_base
-        bool ok_same    = expr_base->equals(declared_base);
-        bool ok_numeric = dynamic_cast<Arithmetic*>(expr_base.get())
-                       && dynamic_cast<Arithmetic*>(declared_base.get());
-
-        if (!ok_same && !ok_numeric) {
-               throw SemanticException("return type mismatch");
         }
 
-        // приводим текущий тип к типу функции
+        // Строгое равенство типов
+        if (!expr_base->equals(declared_base)) {
+            throw SemanticException(
+                "return type mismatch: cannot convert "
+            );
+        }
         current_type = declared_base;
-
     } else {
-        // void-функция не должна возвращать значение
-        if (!dynamic_cast<VoidType*>(declared_base.get()))
+        // «return;» без expr → только в void-функции
+        if (!dynamic_cast<VoidType*>(declared_base.get())) {
             throw SemanticException("non-void function must return a value");
+        }
         current_type = declared_base;
     }
 
     VISIT_BODY_END
 }
+
 
 
 void Analyzer::visit(BreakStatement& /*node*/) {}
