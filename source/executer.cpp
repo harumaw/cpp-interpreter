@@ -653,7 +653,6 @@ void Execute::visit(StructDeclaration& node) {
             continue;
         }
         else {
-            // Если вдруг есть вложенный Namespace/Struct и т.п. — обходим рекурсивно.
             m->accept(*this);
         }
     }
@@ -957,53 +956,177 @@ void Execute::visit(PostfixDecrementExpression& node) {
 void Execute::visit(FunctionCallExpression& node) {
     // === Шаг 0: если это встроенный вызов print(...) — обрабатываем вручную ===
     if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
-        if (ident->name == "print") {
-            // Для каждого аргумента: вычисляем Expression, забираем current_value и печатаем
+     if (ident->name == "print") {
             for (size_t i = 0; i < node.args.size(); ++i) {
                 node.args[i]->accept(*this);
                 auto vsym = std::dynamic_pointer_cast<VarSymbol>(current_value);
-                // Приведём значение к строке в зависимости от типа:
-                if (vsym->value.has_value()) {
-                    const std::type_info& ti = vsym->value.type();
-                    if (ti == typeid(int)) {
-                        std::cout << std::any_cast<int>(vsym->value);
-                    }
-                    else if (ti == typeid(bool)) {
-                        std::cout << (std::any_cast<bool>(vsym->value) ? "true" : "false");
-                    }
-                    else if (ti == typeid(double)) {
-                        std::cout << std::any_cast<double>(vsym->value);
-                    }
-                    else if (ti == typeid(float)) {
-                        std::cout << std::any_cast<float>(vsym->value);
-                    }
-                    else if (ti == typeid(char)) {
-                        std::cout << std::any_cast<char>(vsym->value);
-                    }
-                    else if (ti == typeid(std::string)) {
-                        std::cout << std::any_cast<std::string>(vsym->value);
+                if (!vsym) {
+                    std::cout << "<<?>"; 
+                } else {
+                    if (vsym->value.type() == typeid(std::string)) {
+                        std::string s = std::any_cast<std::string>(vsym->value);
+                        if (s.size() >= 2 && s.front() == '\"' && s.back() == '\"') {
+                            s = s.substr(1, s.size() - 2);
+                        }
+                        std::cout << s;
                     }
                     else {
-                        // Если тип неизвестен — просто напечатаем текст «<<?>»
-                        std::cout << "<<?>"; 
+                        const auto& ti = vsym->value.type();
+                        if (ti == typeid(int)) {
+                            std::cout << std::any_cast<int>(vsym->value);
+                        }
+                        else if (ti == typeid(bool)) {
+                            std::cout << (std::any_cast<bool>(vsym->value) ? "true" : "false");
+                        }
+                        else if (ti == typeid(double)) {
+                            std::cout << std::any_cast<double>(vsym->value);
+                        }
+                        else if (ti == typeid(float)) {
+                            std::cout << std::any_cast<float>(vsym->value);
+                        }
+                        else if (ti == typeid(char)) {
+                            std::cout << std::any_cast<char>(vsym->value);
+                        }
+                        else {
+                            std::cout << "<<?>";
+                        }
                     }
-                } else {
-                    // Пустой std::any, т.е. void / ничего — напечатаем пусто
                 }
 
                 if (i + 1 < node.args.size()) {
-                    std::cout << " "; // разделитель между аргументами
+                    std::cout << " ";
                 }
             }
             std::cout << std::endl;
 
             current_value = std::make_shared<VarSymbol>(std::make_shared<IntegerType>(), 0);
             return;
+        }   
+    }
+
+    if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
+        if (ident->name == "read") {
+            if (node.args.size() != 1) {
+                throw std::runtime_error("read() requires exactly one argument");
+            }
+
+            node.args[0]->accept(*this);
+            auto targetSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+            auto arrElemSym = std::dynamic_pointer_cast<ArrayElementSymbol>(current_value);
+
+            if (arrElemSym) {
+                // Берём родительский VarSymbol массива и индекс
+                auto parentArr = arrElemSym->parentArray;   // VarSymbol самого массива
+                int idx       = arrElemSym->index;         // индекс ячейки
+
+                // Проверим, что parentArr действительно хранит std::vector<std::any>
+                auto &vec = std::any_cast<std::vector<std::any>&>(parentArr->value);
+
+                // Теперь посмотрим на тип элемента (elemType)
+                auto elemType = std::dynamic_pointer_cast<ArrayType>(parentArr->type)->get_base_type();
+
+                // В зависимости от elemType читаем из std::cin в нужный C++-тип
+                if (dynamic_cast<IntegerType*>(elemType.get())) {
+                    int v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read an integer from stdin");
+                    }
+                    vec[idx] = v;
+                    arrElemSym->value = v; // обновляем текущее значение элемента
+                }
+                else if (dynamic_cast<FloatType*>(elemType.get())) {
+                    double v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read a float from stdin");
+                    }
+                    vec[idx] = v;
+                    arrElemSym->value = v;
+                }
+                else if (dynamic_cast<CharType*>(elemType.get())) {
+                    char v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read a char from stdin");
+                    }
+                    vec[idx] = v;
+                    arrElemSym->value = v;
+                }
+                else if (dynamic_cast<BoolType*>(elemType.get())) {
+                    bool v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read a bool from stdin");
+                    }
+                    vec[idx] = v;
+                    arrElemSym->value = v;
+                }
+                else if (dynamic_cast<StringType*>(elemType.get())) {
+                    std::string v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read a string from stdin");
+                    }
+                    vec[idx] = v;
+                    arrElemSym->value = v;
+                }
+                else {
+                    throw std::runtime_error("read(): unsupported array-element type");
+                }
+
+                // Возвращаем в current_value тот же ArrayElementSymbol, чтобы дальше его можно было считать
+                current_value = arrElemSym;
+                return;
+            }
+
+            // 3) Если это просто переменная (VarSymbol), а не элемент массива
+            if (targetSym) {
+                auto varType = targetSym->type;
+
+                if (dynamic_cast<IntegerType*>(varType.get())) {
+                    int v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read an integer from stdin");
+                    }
+                    targetSym->value = v;
+                }
+                else if (dynamic_cast<FloatType*>(varType.get())) {
+                    double v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read a float from stdin");
+                    }
+                    targetSym->value = v;
+                }
+                else if (dynamic_cast<CharType*>(varType.get())) {
+                    char v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read a char from stdin");
+                    }
+                    targetSym->value = v;
+                }
+                else if (dynamic_cast<BoolType*>(varType.get())) {
+                    bool v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read a bool from stdin");
+                    }
+                    targetSym->value = v;
+                }
+                else if (dynamic_cast<StringType*>(varType.get())) {
+                    std::string v;
+                    if (!(std::cin >> v)) {
+                        throw std::runtime_error("read(): failed to read a string from stdin");
+                    }
+                    targetSym->value = v;
+                }
+                else {
+                    throw std::runtime_error("read(): unsupported variable type");
+                }
+                current_value = targetSym;
+                return;
+            }
+
+            throw std::runtime_error("read(): argument must be a variable or array element");
         }
     }
 
-    // идём в стандартную логику вызова функций ===
 
+    
 
     std::vector<std::any> argVals;
     for (auto& argExpr : node.args) {
@@ -1195,3 +1318,4 @@ void Execute::visit(NameSpaceAcceptExpression& node) {
 void Execute::visit(StaticAssertStatement& node) {
 
 }
+

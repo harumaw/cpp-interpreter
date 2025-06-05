@@ -721,10 +721,56 @@ void Analyzer::visit(FunctionCallExpression& node) {
                 scope->push_symbol("print", printSym);
             }
 
-            // Завершаем обработку этого узла
+
             return;
         
         }
+
+        if (ident->name == "read") {
+            // read() требует ровно один аргумент
+            if (arg_types.size() != 1) {
+                throw SemanticException("read() requires exactly one argument");
+            }
+
+            // Мы разрешаем читать только в переменную/элемент массива,
+            // но семантику тут достаточно проверить в анализаторе так:
+            //      1) тип аргумента уже хранится в arg_types[0]
+            //      2) проверяем, что это int, float, char, bool или string
+            auto paramType = arg_types[0].get();
+            bool okType = false;
+            if (dynamic_cast<Arithmetic*>(paramType)) okType = true;
+            if (dynamic_cast<CharType*>(paramType))     okType = true;
+            if (dynamic_cast<BoolType*>(paramType))     okType = true;
+            if (dynamic_cast<StringType*>(paramType))   okType = true;
+            if (!okType) {
+                throw SemanticException(
+                    "read(): unsupported type—only int/float/char/bool/string are allowed"
+                );
+            }
+
+            // сейчас current_type нужно установить в тот же тип, что и у аргумента:
+            current_type = arg_types[0];
+
+            // проверяем, зарегистрирован ли уже символ "read"
+            bool already_registered = true;
+            try {
+                scope->match_global("read");
+            } catch (...) {
+                already_registered = false;
+            }
+
+            if (!already_registered) {
+                // создаём FuncType <T> read(T)
+                std::vector<std::shared_ptr<Type>> params = { arg_types[0] };
+                auto readType = std::make_shared<FuncType>( arg_types[0], params, /*readonly=*/false );
+                auto readSym  = std::make_shared<FuncSymbol>( readType, params, /*readonly=*/false );
+                readSym->declaration = nullptr;
+                scope->push_symbol("read", readSym);
+            }
+
+            return;
+        }
+
         // Перебираем все символы с таким именем
         for (auto& sym : scope->match_range(ident->name)) {
             auto fs = std::dynamic_pointer_cast<FuncSymbol>(sym);
@@ -1056,10 +1102,3 @@ bool Analyzer::evaluateConstant(ASTNode* expr) {
     throw SemanticException("static_assert requires compile-time constant expression");
 }
 
-
-
-
-// 1 tip 
-// strogaya
-// 2 tip poka ssylki v const i td
-// 3
