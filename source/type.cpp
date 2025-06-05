@@ -271,7 +271,7 @@ void RValueType::print() {
 // ArrayType
 // ---------------------------
 
-ArrayType::ArrayType(std::shared_ptr<Type> base, expression size)
+ArrayType::ArrayType(std::shared_ptr<Type> base, std::shared_ptr<Expression> size)
     : base(std::move(base)), size(size)
 {}
 
@@ -279,9 +279,9 @@ std::shared_ptr<Type> ArrayType::get_base_type() const {
     return base;
 }
 
-expression ArrayType::get_size() const {
+/*Symbol ArrayType::get_size() const {
     return size;
-}
+}*/
 
 bool ArrayType::equals(const std::shared_ptr<Type>& other) const {
     if (auto o = dynamic_cast<ArrayType*>(other.get())) {

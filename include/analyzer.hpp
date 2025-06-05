@@ -87,7 +87,8 @@ public:
 
 	
 	bool evaluateConstant(ASTNode*);
-
+	std::shared_ptr<Scope> getScope() const { return scope; }
+		
 	enum class BinaryOp{
 		Add, Subtract, Multiply, Divide, Less, Greater, Equal
 	};

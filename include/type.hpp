@@ -6,6 +6,7 @@
 #include <memory>
 #include <iostream>
 #include "expression.hpp"
+#include "symbol.hpp"
 
 /*
 Type
@@ -103,7 +104,7 @@ private:
 // ---------------------------
 // Составные типы
 // ---------------------------
-struct Composite : Type {};
+struct Composite : Type {}; 
 
 struct FuncType : Composite {
     explicit FuncType(std::shared_ptr<Type> return_type,
@@ -164,14 +165,14 @@ private:
 };
 
 struct ArrayType : Composite {
-    explicit ArrayType(std::shared_ptr<Type> base, expression size);
+    explicit ArrayType(std::shared_ptr<Type> base, std::shared_ptr<Expression> size);
     std::shared_ptr<Type> get_base_type() const;
-    expression get_size() const;
+    expression get_size() const; // rework in int 
     bool equals(const std::shared_ptr<Type>& other) const override;
     void print() override;
 private:
     std::shared_ptr<Type> base;
-    expression size;
+    std::shared_ptr<Expression> size;
 };
 
 struct ConstType : Type {

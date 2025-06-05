@@ -13,10 +13,9 @@
 class Execute : public Visitor {
 public:
     Execute();
-    
+    ~Execute();
+
     void execute(TranslationUnit& unit);
-
-
     void visit(ASTNode&) override;
     void visit(TranslationUnit& unit) override;
     void visit(Declaration::PtrDeclarator&) override;
@@ -57,27 +56,21 @@ public:
     void visit(TernaryExpression&) override;
     void visit(SizeOfExpression&) override;
     void visit(NameSpaceAcceptExpression&) override;
+    void visit(StaticAssertStatement&) override;
+
+    std::shared_ptr<Scope> symbolTable;
 
 private:
 
-    std::shared_ptr<Scope> scope;
-    using Value = std::any;
+    std::shared_ptr<Symbol> match_symbol (const std::string& token);
+    bool is_record_type(const std::shared_ptr<Type>& type);
+    bool count_bool(std::any, std::string&, std::any);
+    std::shared_ptr<VarSymbol> binary_operation(std::shared_ptr<VarSymbol>, std::string&, std::shared_ptr<VarSymbol>);
+    std::shared_ptr<VarSymbol> unary_operation(std::shared_ptr<VarSymbol>, std::string&);
+    std::shared_ptr<VarSymbol> postfix_operation(std::shared_ptr<VarSymbol>, std::string&);
+    bool can_convert(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to);
 
-    // Стек фреймов: каждый фрейм хранит map<имя_переменной, Value>
-        struct Frame {
-        std::unordered_map<std::string, Value> vars;
-    };
-    std::vector<Frame> call_stack;
-
-    
-    Value current_value;
-
-    bool returned;
-    bool return_triggered;
-    Value return_value;
-    bool break_triggered;
-    bool continue_triggered;
-
-    
-    std::unordered_map<std::string, FuncDeclaration*> functions;
+    std::shared_ptr<Symbol> current_value;
+    std::vector<std::shared_ptr<FuncType>> matched_functions;
+    static std::unordered_map<std::string, std::shared_ptr<Symbol>> default_types;
 };

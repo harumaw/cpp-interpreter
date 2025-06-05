@@ -586,12 +586,12 @@ expression Parser::parse_postfix_expression() {
             left = std::make_shared<SubscriptExpression>(left, arg);
         }
         if (match_token(TokenType::PARENTHESIS_LEFT)) {
-            std::cout << tokens[offset].value << std::endl;
+            //std::cout << tokens[offset].value << std::endl;
             std::vector<std::shared_ptr<Expression>> args;
             while (!check_token(TokenType::PARENTHESIS_RIGHT)) {
                 auto arg = parse_expression();
                 args.push_back(arg);
-                std::cout << tokens[offset].value << std::endl;
+                //std::cout << tokens[offset].value << std::endl;
                 if (match_token(TokenType::COMMA)) {
                     continue; 
                 } else if (check_token(TokenType::PARENTHESIS_RIGHT)) {

@@ -21,10 +21,17 @@ bool Scope::contains_symbol(std::string name) {
 }
 
 std::shared_ptr<Symbol> Scope::match_global(std::string name) {
+      /*std::cout << "[Scope::match_global] Looking for '" << name 
+              << "' in scope: " << this << std::endl;*/
+
     if (contains_symbol(name)) {
+       /* std::cout << "[Scope::match_global] Found '" << name 
+                  << "' in scope: " << this << std::endl; */
         return symbolTable.find(name)->second;
     }
     if (prev_table == nullptr){
+       /* std::cout << "[Scope::match_global] Not found '" << name 
+                  << "', reached top scope." << std::endl; */
         throw std::runtime_error("Symbol '" + name + "' not found in scope.");
     }
     return this->prev_table->match_global(name); // возвращаем из старшей области видимости
@@ -60,4 +67,14 @@ void Scope::push_symbol(std::string name, std::shared_ptr<Symbol> symbol) {
         throw std::runtime_error("Symbol '" + name + "' already exists in scope. in scope");
     }
     symbolTable.insert({name, symbol});
+}
+
+bool Scope::contains_symbol_recursive(const std::string& name) {
+    if (contains_symbol(name)) {
+        return true;
+    }
+    if (prev_table) {
+        return prev_table->contains_symbol_recursive(name);
+    }
+    return false;
 }

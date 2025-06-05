@@ -1,6 +1,7 @@
 #include "analyzer.hpp"
 #include "token.hpp"
 #include "semantic_exception.hpp"
+#include "type.hpp"
 
 int getTypeRank(const Type& type) {
     if (dynamic_cast<const FloatType*>(&type))    return  3;
@@ -260,10 +261,9 @@ void Analyzer::visit(FuncDeclaration& node) {
     }
 
     auto signature = std::make_shared<FuncType>(ret_t, arg_ts, node.is_readonly);
-    scope->push_symbol(
-        fname,
-        std::make_shared<FuncSymbol>(signature, arg_ts, node.is_readonly)
-    );
+    auto funcSym   = std::make_shared<FuncSymbol>(signature, arg_ts, node.is_readonly);
+    funcSym->declaration = &node;
+    scope->push_symbol(fname, funcSym);
 
     // ======== Второй проход: валидация тела с известным ret_t ========
     return_type_stack.push_back(ret_t);
@@ -297,83 +297,100 @@ void Analyzer::visit(FuncDeclaration& node) {
     VISIT_BODY_END
 }
 
+
+
 void Analyzer::visit(StructDeclaration& node) {
     VISIT_BODY_BEGIN
 
-    // 1) Проверка на повторное объявление именно в этой области видимости
+    // 1) Если в этой области видимости уже есть символ с таким именем – ошибка
     if (scope->contains_symbol(node.name)) {
         throw SemanticException("struct already declared: " + node.name);
     }
 
-    // 2) Собираем описание полей и методов в локальные map-ы
-    std::unordered_map<std::string, std::shared_ptr<Type>> data_members;
+    // 2) Две карты: data_members для типов полей, methods для типов методов,
+    //    и одна карта member_symbols для самих VarSymbol/FuncSymbol
+    std::unordered_map<std::string, std::shared_ptr<Type>>    data_members;
     std::unordered_map<std::string, std::shared_ptr<FuncType>> methods;
+    std::unordered_map<std::string, std::shared_ptr<Symbol>>   member_symbols;
 
+    // 3) Перебираем все члены структуры
     for (auto& m : node.members) {
+        // --- Случай поля ---
         if (auto fld = dynamic_cast<VarDeclaration*>(m.get())) {
-            // анализ поля, чтобы в current_type лежал его тип
+            // 3.1. Проанализировать поле, чтобы current_type = его тип
             fld->accept(*this);
-            const auto& fname = fld->declarator_list[0]->declarator->name;
-            if (data_members.count(fname)) {
-                throw SemanticException("duplicate struct member: " 
-                                         + fname + " in struct " + node.name);
-            }
-            data_members[fname] = current_type;
+            const auto& fieldName = fld->declarator_list[0]->declarator->name;
 
-        } else if (auto mtd = dynamic_cast<FuncDeclaration*>(m.get())) {
-            // строим FuncType для метода
+            // 3.2. Проверка на дубликат
+            if (data_members.count(fieldName)) {
+                throw SemanticException(
+                    "duplicate struct member: " + fieldName + " in struct " + node.name
+                );
+            }
+
+            // 3.3. Сохраняем тип этого поля
+            data_members[fieldName] = current_type;
+
+            // 3.4. И создаём VarSymbol, чтобы в рантайме Executor «увидел» это поле
+            auto varSym = std::make_shared<VarSymbol>(current_type);
+            member_symbols[fieldName] = varSym;
+        }
+        // --- Случай метода ---
+        else if (auto mtd = dynamic_cast<FuncDeclaration*>(m.get())) {
+            // 3.5. Вычисляем возвращаемый тип метода
             auto m_ret = get_type(mtd->type);
             if (mtd->is_const) {
                 m_ret = std::make_shared<ConstType>(m_ret);
             }
 
+            // 3.6. Собираем типы параметров (без вызова accept на самом Declarator'е)
             std::vector<std::shared_ptr<Type>> m_args;
             for (auto& p : mtd->args) {
-                auto at = get_type(p->type);
-                p->init_declarator->declarator->accept(*this);
-                m_args.push_back(current_type);
+                // Точно берём тип из имени (p->type), не вызывая accept на declarator
+                m_args.push_back(get_type(p->type));
             }
 
+            // 3.7. Создаём FuncType для этого метода
             auto m_ft = std::make_shared<FuncType>(m_ret, m_args, mtd->is_readonly);
-            const auto& mname = mtd->declarator->name;
-            if (methods.count(mname)) {
-                throw SemanticException("duplicate struct method: " 
-                                         + mname + " in struct " + node.name);
-            }
-            methods[mname] = m_ft;
 
-        } else {
-            throw SemanticException("invalid struct member declaration in struct " 
-                                     + node.name);
+            const auto& methodName = mtd->declarator->name;
+            // 3.8. Проверяем, что метода с таким именем ещё нет внутри этой struct
+            if (methods.count(methodName)) {
+                throw SemanticException(
+                    "duplicate struct method: " + methodName + " in struct " + node.name
+                );
+            }
+            methods[methodName] = m_ft;
+
+            // 3.9. Создаём сам FuncSymbol и сохраняем указатель на FuncDeclaration*
+            auto fsym = std::make_shared<FuncSymbol>(
+                m_ft,
+                m_ft->get_args(),
+                mtd->is_readonly
+            );
+            fsym->declaration = mtd; 
+            member_symbols[methodName] = fsym;
+        }
+        else {
+            throw SemanticException(
+                "invalid struct member declaration in struct " + node.name
+            );
         }
     }
 
-    // 3a) Создаём тип записи
+    // 4) Собираем готовый StructType из описания полей и методов
     auto struct_type = std::make_shared<StructType>(data_members, methods);
 
-    // 3b) Превращаем поля и методы в символы
-    std::unordered_map<std::string, std::shared_ptr<Symbol>> member_symbols;
-    for (auto& [name, ty] : data_members) {
-        member_symbols[name] = std::make_shared<VarSymbol>(ty);
-    }
-    for (auto& [name, ft] : methods) {
-        member_symbols[name] = std::make_shared<FuncSymbol>(
-            ft,
-            ft->get_args(),
-            ft->is_method_const()
-        );
-    }
-
-    // 3c) Регистрируем RecordSymbol
-    auto struct_sym = std::make_shared<StructSymbol>(
+    // 5) Создаём StructSymbol и регистрируем его в текущем scope
+    //    (внутри StructSymbol::members попадают и поля, и методы)
+    auto structSym = std::make_shared<StructSymbol>(
         struct_type,
         std::move(member_symbols)
     );
-    scope->push_symbol(node.name, struct_sym);
+    scope->push_symbol(node.name, structSym);
 
     VISIT_BODY_END
 }
-
 
 
 void Analyzer::visit(ArrayDeclaration& node) {
@@ -384,22 +401,12 @@ void Analyzer::visit(ArrayDeclaration& node) {
         throw SemanticException("array size must be integer");
     }
 
-    // базовый тип массива
     auto base_t = get_type(node.type);
     auto arr_t  = std::make_shared<ArrayType>(base_t, node.size);
 
-    // проверяем, нет ли уже в текущем скоупе символа с таким именем
-    if (scope->contains_symbol(node.name)) {
-        throw SemanticException("variable already declared: " + node.name);
-    }
+    // ОБЯЗАТЕЛЬНО РЕГИСТРИРУЙ В ТЕКУЩЕМ SCOPE (ТОМ ЖЕ, ГДЕ EXECUTOR БУДЕТ ИСКАТЬ):
+    scope->push_symbol(node.name, std::make_shared<VarSymbol>(arr_t));
 
-    // регистрируем переменную–массив как символ
-    scope->push_symbol(
-        node.name,
-        std::make_shared<VarSymbol>(arr_t)    // или ArraySymbol, если вы его завели
-    );
-
-    // результирующий тип этого выражения — массив
     current_type = arr_t;
 
     VISIT_BODY_END
@@ -689,6 +696,35 @@ void Analyzer::visit(FunctionCallExpression& node) {
 
     // 3) Простой свободный вызов: f(...)
     } else if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
+         if (ident->name == "print") {
+            // Тип возвращаемого значения у print — void
+            auto voidType = std::make_shared<VoidType>();
+            current_type = voidType;
+
+            // Проверяем, зарегистрирован ли уже print в текущем скоупе.
+            // Если метода contains_symbol нет, можно обойтись через match_global:
+            bool already_registered = true;
+            try {
+                // Если в таблице найдётся символ "print", match_global не бросит исключение
+                scope->match_global("print");
+            } catch (...) {
+                // Если бросилось исключение — значит print ещё не зарегистрирован
+                already_registered = false;
+            }
+
+            if (!already_registered) {
+                // Регистрируем «встроенный» print один раз
+                // func_t не используется далее, но для полноты создадим FuncType:
+                auto printType = std::make_shared<FuncType>(voidType, arg_types, /*readonly=*/false);
+                auto printSym = std::make_shared<FuncSymbol>(printType, arg_types, /*readonly=*/false);
+                printSym->declaration = nullptr; // у встроенной функции нет AST-тела
+                scope->push_symbol("print", printSym);
+            }
+
+            // Завершаем обработку этого узла
+            return;
+        
+        }
         // Перебираем все символы с таким именем
         for (auto& sym : scope->match_range(ident->name)) {
             auto fs = std::dynamic_pointer_cast<FuncSymbol>(sym);
@@ -925,7 +961,7 @@ void Analyzer::visit(DoWhileStatement& node) {
 }
 
 
-// ————————— NameSpaceAcceptExpression —————————
+
 void Analyzer::visit(NameSpaceAcceptExpression& node) {
     VISIT_BODY_BEGIN
 
