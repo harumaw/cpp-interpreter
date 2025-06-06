@@ -8,6 +8,9 @@ void Declaration::SimpleDeclarator::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
 
+Declaration::PtrDeclarator::PtrDeclarator(const std::shared_ptr<Declarator>& inner)
+        : Declarator(inner->name), inner(inner) {}
+
 void Declaration::PtrDeclarator::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
@@ -79,3 +82,4 @@ NameSpaceDeclaration::NameSpaceDeclaration(const std::string& name,
 void NameSpaceDeclaration::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
+

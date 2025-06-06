@@ -42,6 +42,7 @@ public:
 	void visit(CharLiteral&) override;
 	void visit(StringLiteral&) override;
 	void visit(BoolLiteral&) override;
+	void visit(NullPtrLiteral&) override;
 	void visit(IdentifierExpression&) override;
 	void visit(ParenthesizedExpression&) override;
 	void visit(TernaryExpression&) override;

@@ -5,7 +5,7 @@
 #include "ast.hpp"
 #include "analyzer.hpp"
 #include "printer.hpp"
-#include "executer.hpp"  // <-- добавили
+#include "executer.hpp"  
 
 int main() {
     try {
@@ -18,6 +18,7 @@ int main() {
         auto   translation_unit = parser.parse();
         std::cout << "parser end\n";
 
+        
         Analyzer analyzer;
         analyzer.analyze(*translation_unit);
         std::cout << "analyzer end\n";
@@ -31,21 +32,17 @@ int main() {
             return 2;  
         }
 
-
-
-           // если в main не было return, можно дальше распечатать AST
-
-        // —————— Здесь запускаем интерпретатор ——————
+        
         Execute executor;
         executor.symbolTable = analyzer.getScope();
         executor.execute(*translation_unit);
-
+        
         std::cout << "executer end\n";
 
-        //Printer printer;
-        //printer.visit(*translation_unit);
+       Printer printer;
+        printer.visit(*translation_unit);
         return 0;
-
+        
 
         
  

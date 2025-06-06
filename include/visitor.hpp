@@ -46,6 +46,7 @@ public:
 	virtual void visit(CharLiteral&) = 0;
 	virtual void visit(StringLiteral&) = 0;
 	virtual void visit(BoolLiteral&) = 0;
+	virtual void visit(NullPtrLiteral&) = 0;
 	virtual void visit(IdentifierExpression&) = 0;
 	virtual void visit(ParenthesizedExpression&) = 0;
 	virtual void visit(TernaryExpression&) = 0;

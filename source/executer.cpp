@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <typeinfo>
 
-// Собственные «сигнальные» исключения для управления потоком
+
 struct BreakSignal : std::exception {};
 struct ContinueSignal : std::exception {};
 struct ReturnSignal : std::exception {
@@ -25,14 +25,11 @@ Execute::Execute() : symbolTable(std::make_shared<Scope>(nullptr)) { }
 Execute::~Execute() { }
 
 
-// === 2) Метод execute(...) ===
 void Execute::execute(TranslationUnit& unit) {
-    // Регистрация объявлений (функции, переменные), но без выполнения тел функций
     for (auto& node : unit.get_nodes()) {
         node->accept(*this);
     }
 
-    // Ищем функцию main
     std::shared_ptr<Symbol> mainBase;
     try {
         mainBase = symbolTable->match_global("main");
@@ -44,7 +41,6 @@ void Execute::execute(TranslationUnit& unit) {
         throw std::runtime_error("'main' is not a function");
     }
 
-    // Проверяем сигнатуру main(): int main()
     auto mainType = std::dynamic_pointer_cast<FuncType>(mainSym->type);
     if (!dynamic_cast<IntegerType*>(mainType->get_returnable_type().get())) {
         throw std::runtime_error("'main' must return int");
@@ -53,14 +49,12 @@ void Execute::execute(TranslationUnit& unit) {
         throw std::runtime_error("'main' should not take parameters");
     }
 
-    // Выполняем тело main в новом scope, ловя ReturnSignal
     int exitCode = 0;
     {
         auto savedScope = symbolTable;
         symbolTable = symbolTable->create_new_table(savedScope);
 
         try {
-            // собственно «выполнение» тела main()
             mainSym->declaration->body->accept(*this);
         }
         catch (ReturnSignal& ret) {
@@ -70,7 +64,7 @@ void Execute::execute(TranslationUnit& unit) {
         symbolTable = savedScope;
     }
 
-    // exitCode можно использовать дальше по желанию
+
     (void)exitCode;
 }
 
@@ -97,47 +91,160 @@ bool Execute::count_bool(std::any a, std::string& op, std::any b) {
     return false;
 }
 
-std::shared_ptr<VarSymbol> Execute::binary_operation(std::shared_ptr<VarSymbol> lhsSym,
-                                                     std::string& op,
-                                                     std::shared_ptr<VarSymbol> rhsSym) {
+std::shared_ptr<VarSymbol> Execute::binary_operation(
+    std::shared_ptr<VarSymbol> lhsSym,
+    std::string& op,
+    std::shared_ptr<VarSymbol> rhsSym)
+{
+    auto lhsType = lhsSym->type;
+    auto rhsType = rhsSym->type;
+    auto lhsVal  = lhsSym->value;
+    auto rhsVal  = rhsSym->value;
+
+
     if (op == "=") {
-        // 1.1) Проверим, не ArrayElementSymbol ли lhsSym
         if (auto arrElem = std::dynamic_pointer_cast<ArrayElementSymbol>(lhsSym)) {
-            auto parent = arrElem->parentArray;    // VarSymbol массива
-            int idx    = arrElem->index;           // индекс внутри массива
-
-            // Получаем ссылку на in-place вектор из parent->value
-            auto &vec = std::any_cast<std::vector<std::any>&>(parent->value);
-
-            // Проверка границ (на всякий случай)
-            if (idx < 0 || idx >= static_cast<int>(vec.size())) {
+            auto parent = arrElem->parentArray;
+            int idx     = arrElem->index;
+            auto &vec   = std::any_cast<std::vector<std::any>&>(parent->value);
+            if (idx < 0 || idx >= static_cast<int>(vec.size()))
                 throw std::runtime_error("binary_operation: array index out of range");
-            }
-
-            // Кладём внутрь vec новое значение
-            vec[idx] = rhsSym->value;
-
-            // Обновим сам lhsSym->value (чтобы его потом можно было прочитать, если нужно)
+            vec[idx]       = rhsSym->value;
             arrElem->value = rhsSym->value;
-
-            // Возвращаем как результат присваивания сам объект arrElem
             return arrElem;
         }
-
-        // 1.2) Если же это обычное присваивание переменной x = y
         lhsSym->value = rhsSym->value;
         return lhsSym;
     }
 
-    // --------------------------------
-    // 2) Композитные "+=", "-=", "*=", "/="
-    // --------------------------------
-    if (op == "+=" || op == "-=" || op == "*=" || op == "/=") {
-        std::any lhsVal = lhsSym->value;
-        std::any rhsVal = rhsSym->value;
+    // вспомогательный лямбда: является ли S указателем на VarSymbol или ArrayElementSymbol?
+    auto isPointerToVar = [&](std::shared_ptr<VarSymbol> S)->bool {
+        if (!S->type) return false;
+        if (!dynamic_cast<PointerType*>(S->type.get())) return false;
+        if (!S->value.has_value()) return false;
+        const std::type_info &t = S->value.type();
+        return (t == typeid(std::shared_ptr<VarSymbol>))
+            || (t == typeid(std::shared_ptr<ArrayElementSymbol>));
+    };
 
-        auto toDouble = [&](const std::any& v) -> double {
-            if (!v.has_value()) return 0.0;
+    // арифметика указателей: p + n или p - n
+    if ((op == "+" || op == "-") && isPointerToVar(lhsSym)) {
+        std::shared_ptr<VarSymbol> pointedVar;
+        // достаём, куда указывает lhsSym
+        if (lhsSym->value.type() == typeid(std::shared_ptr<VarSymbol>)) {
+            pointedVar = std::any_cast<std::shared_ptr<VarSymbol>>(lhsSym->value);
+        } else {
+            auto arrPtr = std::any_cast<std::shared_ptr<ArrayElementSymbol>>(lhsSym->value);
+            pointedVar = std::static_pointer_cast<VarSymbol>(arrPtr);
+        }
+
+        if (rhsVal.type() != typeid(int)) {
+            throw std::runtime_error("pointer arithmetic: second operand must be int");
+        }
+        int offset = std::any_cast<int>(rhsVal);
+
+        int baseIndex = 0;
+        std::shared_ptr<VarSymbol> parentArraySym;
+        if (auto arrElem = std::dynamic_pointer_cast<ArrayElementSymbol>(pointedVar)) {
+            parentArraySym = arrElem->parentArray;
+            baseIndex      = arrElem->index;
+        } else {
+            // указатель на "отдельную" переменную: допускаем только offset == 0
+            if (offset != 0)
+                throw std::runtime_error("pointer arithmetic goes out of bounds");
+            parentArraySym = nullptr;
+            baseIndex      = 0;
+        }
+
+        int newIndex = (op == "+") ? (baseIndex + offset) : (baseIndex - offset);
+
+        if (parentArraySym) {
+            auto &vec = std::any_cast<std::vector<std::any>&>(parentArraySym->value);
+            if (newIndex < 0 || newIndex >= static_cast<int>(vec.size()))
+                throw std::runtime_error("pointer arithmetic: out of array bounds");
+            auto elemType   = std::static_pointer_cast<ArrayType>(parentArraySym->type)->get_base_type();
+            auto newElem    = std::make_shared<ArrayElementSymbol>(elemType, vec[newIndex], parentArraySym, newIndex);
+            auto newPtrType = std::make_shared<PointerType>(elemType);
+            auto newPtrSym  = std::make_shared<VarSymbol>(newPtrType);
+            newPtrSym->value = newElem;
+            return newPtrSym;
+        } else {
+            // offset == 0 -> возвращаем тот же указатель
+            return lhsSym;
+        }
+    }
+
+    // --- 2) Вычитание указателей: p2 - p1 ---
+    if (op == "-" && isPointerToVar(lhsSym) && isPointerToVar(rhsSym)) {
+        std::shared_ptr<VarSymbol> leftPointed, rightPointed;
+        if (lhsSym->value.type() == typeid(std::shared_ptr<VarSymbol>)) {
+            leftPointed = std::any_cast<std::shared_ptr<VarSymbol>>(lhsSym->value);
+        } else {
+            auto arrPtrL = std::any_cast<std::shared_ptr<ArrayElementSymbol>>(lhsSym->value);
+            leftPointed = std::static_pointer_cast<VarSymbol>(arrPtrL);
+        }
+        if (rhsSym->value.type() == typeid(std::shared_ptr<VarSymbol>)) {
+            rightPointed = std::any_cast<std::shared_ptr<VarSymbol>>(rhsSym->value);
+        } else {
+            auto arrPtrR = std::any_cast<std::shared_ptr<ArrayElementSymbol>>(rhsSym->value);
+            rightPointed = std::static_pointer_cast<VarSymbol>(arrPtrR);
+        }
+
+        if (auto arrElemL = std::dynamic_pointer_cast<ArrayElementSymbol>(leftPointed)) {
+            if (auto arrElemR = std::dynamic_pointer_cast<ArrayElementSymbol>(rightPointed)) {
+                if (arrElemL->parentArray == arrElemR->parentArray) {
+                    int diff = arrElemL->index - arrElemR->index;
+                    return std::make_shared<VarSymbol>(
+                        std::make_shared<IntegerType>(), diff
+                    );
+                }
+            }
+        }
+        throw std::runtime_error("pointer subtraction only valid for same array");
+    }
+
+    // cравнение указателей с nullptr или друг с другом
+    if ((op == "==" || op == "!=") && (isPointerToVar(lhsSym) || isPointerToVar(rhsSym))) {
+        // lhs == nullptr
+        if (lhsVal.has_value() && lhsVal.type() == typeid(std::nullptr_t) && isPointerToVar(rhsSym)) {
+            bool isNull = (std::any_cast<std::nullptr_t>(lhsVal) == nullptr);
+            bool result = (op == "==") ? isNull : !isNull;
+            return std::make_shared<VarSymbol>(std::make_shared<BoolType>(), result);
+        }
+        // rhs == nullptr
+        if (rhsVal.has_value() && rhsVal.type() == typeid(std::nullptr_t) && isPointerToVar(lhsSym)) {
+            bool isNull = (std::any_cast<std::nullptr_t>(rhsVal) == nullptr);
+            bool result = (op == "==") ? isNull : !isNull;
+            return std::make_shared<VarSymbol>(std::make_shared<BoolType>(), result);
+        }
+        // оба указателя
+        if (isPointerToVar(lhsSym) && isPointerToVar(rhsSym)) {
+            std::shared_ptr<VarSymbol> L, R;
+            if (lhsVal.type() == typeid(std::shared_ptr<VarSymbol>)) {
+                L = std::any_cast<std::shared_ptr<VarSymbol>>(lhsVal);
+            } else {
+                auto arrPtrL = std::any_cast<std::shared_ptr<ArrayElementSymbol>>(lhsVal);
+                L = std::static_pointer_cast<VarSymbol>(arrPtrL);
+            }
+            if (rhsVal.type() == typeid(std::shared_ptr<VarSymbol>)) {
+                R = std::any_cast<std::shared_ptr<VarSymbol>>(rhsVal);
+            } else {
+                auto arrPtrR = std::any_cast<std::shared_ptr<ArrayElementSymbol>>(rhsVal);
+                R = std::static_pointer_cast<VarSymbol>(arrPtrR);
+            }
+            bool eq     = (L.get() == R.get());
+            bool result = (op == "==") ? eq : !eq;
+            return std::make_shared<VarSymbol>(std::make_shared<BoolType>(), result);
+        }
+        throw std::runtime_error("pointer comparison type mismatch");
+    }
+
+    //  композитные “+=, -=, *=, /=” и обычная арифметика для чисел
+    if (op == "+=" || op == "-=" || op == "*=" || op == "/=") {
+        std::any lhsV = lhsSym->value;
+        std::any rhsV = rhsSym->value;
+        auto toDouble = [&](const std::any& v)->double {
+            if (!v.has_value())     return 0.0;
             if (v.type() == typeid(int))    return double(std::any_cast<int>(v));
             if (v.type() == typeid(bool))   return std::any_cast<bool>(v) ? 1.0 : 0.0;
             if (v.type() == typeid(char))   return double(std::any_cast<char>(v));
@@ -145,8 +252,7 @@ std::shared_ptr<VarSymbol> Execute::binary_operation(std::shared_ptr<VarSymbol> 
             if (v.type() == typeid(double)) return         std::any_cast<double>(v);
             return 0.0;
         };
-
-        auto toInt = [&](const std::any& v) -> int {
+        auto toInt = [&](const std::any& v)->int {
             if (!v.has_value()) return 0;
             if (v.type() == typeid(int))    return         std::any_cast<int>(v);
             if (v.type() == typeid(bool))   return std::any_cast<bool>(v) ? 1 : 0;
@@ -155,91 +261,77 @@ std::shared_ptr<VarSymbol> Execute::binary_operation(std::shared_ptr<VarSymbol> 
             if (v.type() == typeid(double)) return int(std::any_cast<double>(v));
             return 0;
         };
-
-        bool isFloatOp = (lhsVal.type() == typeid(double) || rhsVal.type() == typeid(double)
-                       || lhsVal.type() == typeid(float)  || rhsVal.type() == typeid(float));
-
+        bool isFloatOp = (lhsV.type() == typeid(double) || rhsV.type() == typeid(double)
+                       || lhsV.type() == typeid(float)  || rhsV.type() == typeid(float));
         std::any resultAny;
         std::shared_ptr<Type> resultType;
-
         if (op == "+=") {
             if (isFloatOp) {
-                double l = toDouble(lhsVal), r = toDouble(rhsVal);
+                double l = toDouble(lhsV), r = toDouble(rhsV);
                 resultAny = l + r;         resultType = std::make_shared<FloatType>();
             } else {
-                int l = toInt(lhsVal), r = toInt(rhsVal);
+                int l = toInt(lhsV), r = toInt(rhsV);
                 resultAny = l + r;         resultType = std::make_shared<IntegerType>();
             }
         }
         else if (op == "-=") {
             if (isFloatOp) {
-                double l = toDouble(lhsVal), r = toDouble(rhsVal);
+                double l = toDouble(lhsV), r = toDouble(rhsV);
                 resultAny = l - r;         resultType = std::make_shared<FloatType>();
             } else {
-                int l = toInt(lhsVal), r = toInt(rhsVal);
+                int l = toInt(lhsV), r = toInt(rhsV);
                 resultAny = l - r;         resultType = std::make_shared<IntegerType>();
             }
         }
         else if (op == "*=") {
             if (isFloatOp) {
-                double l = toDouble(lhsVal), r = toDouble(rhsVal);
+                double l = toDouble(lhsV), r = toDouble(rhsV);
                 resultAny = l * r;         resultType = std::make_shared<FloatType>();
             } else {
-                int l = toInt(lhsVal), r = toInt(rhsVal);
+                int l = toInt(lhsV), r = toInt(rhsV);
                 resultAny = l * r;         resultType = std::make_shared<IntegerType>();
             }
         }
         else { // "/="
             if (isFloatOp) {
-                double l = toDouble(lhsVal), r = toDouble(rhsVal);
+                double l = toDouble(lhsV), r = toDouble(rhsV);
                 if (r == 0.0) throw std::runtime_error("division by zero");
                 resultAny = l / r;        resultType = std::make_shared<FloatType>();
             } else {
-                int l = toInt(lhsVal), r = toInt(rhsVal);
+                int l = toInt(lhsV), r = toInt(rhsV);
                 if (r == 0) throw std::runtime_error("division by zero");
                 resultAny = l / r;        resultType = std::make_shared<IntegerType>();
             }
         }
-
-        // Сохраняем новое значение в lhsSym
         lhsSym->value = resultAny;
         lhsSym->type  = resultType;
         return lhsSym;
     }
 
-    // --------------------------------
-    // 3) Прочие бинарные операции (+, -, *, /, <, >, ==, !=, &&, || и т.п.)
-    // --------------------------------
-    std::any lhsVal  = lhsSym->value;
-    std::any rhsVal  = rhsSym->value;
-
-    auto toDouble = [&](const std::any& v) -> double {
-        if (!v.has_value()) return 0.0;
-        if (v.type() == typeid(int))    return double(std::any_cast<int>(v));
-        if (v.type() == typeid(bool))   return std::any_cast<bool>(v) ? 1.0 : 0.0;
-        if (v.type() == typeid(char))   return double(std::any_cast<char>(v));
-        if (v.type() == typeid(float))  return double(std::any_cast<float>(v));
-        if (v.type() == typeid(double)) return         std::any_cast<double>(v);
-        return 0.0;
-    };
-
-    auto toInt = [&](const std::any& v) -> int {
-        if (!v.has_value()) return 0;
-        if (v.type() == typeid(int))    return         std::any_cast<int>(v);
-        if (v.type() == typeid(bool))   return std::any_cast<bool>(v) ? 1 : 0;
-        if (v.type() == typeid(char))   return int(std::any_cast<char>(v));
-        if (v.type() == typeid(float))  return int(std::any_cast<float>(v));
-        if (v.type() == typeid(double)) return int(std::any_cast<double>(v));
-        return 0;
-    };
-
-    bool isFloatOp2 = (lhsVal.type() == typeid(double) || rhsVal.type() == typeid(double)
-                    || lhsVal.type() == typeid(float)  || rhsVal.type() == typeid(float));
-
-    std::any resultAny;
-    std::shared_ptr<Type> resultType;
-
+    // обычная арифметика “+”, “-”, “*”, “/” для чисел
     if (op == "+" || op == "-" || op == "*" || op == "/") {
+        bool isFloatOp2 = (lhsVal.type() == typeid(double) || rhsVal.type() == typeid(double)
+                        || lhsVal.type() == typeid(float)  || rhsVal.type() == typeid(float));
+        std::any resultAny;
+        std::shared_ptr<Type> resultType;
+        auto toDouble = [&](const std::any& v)->double {
+            if (!v.has_value())     return 0.0;
+            if (v.type() == typeid(int))    return double(std::any_cast<int>(v));
+            if (v.type() == typeid(bool))   return std::any_cast<bool>(v) ? 1.0 : 0.0;
+            if (v.type() == typeid(char))   return double(std::any_cast<char>(v));
+            if (v.type() == typeid(float))  return double(std::any_cast<float>(v));
+            if (v.type() == typeid(double)) return         std::any_cast<double>(v);
+            return 0.0;
+        };
+        auto toInt = [&](const std::any& v)->int {
+            if (!v.has_value()) return 0;
+            if (v.type() == typeid(int))    return         std::any_cast<int>(v);
+            if (v.type() == typeid(bool))   return std::any_cast<bool>(v) ? 1 : 0;
+            if (v.type() == typeid(char))   return int(std::any_cast<char>(v));
+            if (v.type() == typeid(float))  return int(std::any_cast<float>(v));
+            if (v.type() == typeid(double)) return int(std::any_cast<double>(v));
+            return 0;
+        };
         if (isFloatOp2) {
             double l = toDouble(lhsVal), r = toDouble(rhsVal);
             if (op == "+")       resultAny = l + r;
@@ -261,41 +353,34 @@ std::shared_ptr<VarSymbol> Execute::binary_operation(std::shared_ptr<VarSymbol> 
             }
             resultType = std::make_shared<IntegerType>();
         }
-    }
-    else if (op == "<" || op == ">" || op == "<=" || op == ">=" || op == "==" || op == "!=") {
-        bool cmp;
-        if (isFloatOp2) {
-            double l = toDouble(lhsVal), r = toDouble(rhsVal);
-            if (op == "<")   cmp = (l < r);
-            else if (op == ">")   cmp = (l > r);
-            else if (op == "<=")  cmp = (l <= r);
-            else if (op == ">=")  cmp = (l >= r);
-            else if (op == "==")  cmp = (l == r);
-            else /* "!=" */      cmp = (l != r);
-        } else {
-            int l = toInt(lhsVal), r = toInt(rhsVal);
-            if (op == "<")   cmp = (l < r);
-            else if (op == ">")   cmp = (l > r);
-            else if (op == "<=")  cmp = (l <= r);
-            else if (op == ">=")  cmp = (l >= r);
-            else if (op == "==")  cmp = (l == r);
-            else /* "!=" */      cmp = (l != r);
-        }
-        resultAny  = cmp;
-        resultType = std::make_shared<BoolType>();
-    }
-    else if (op == "&&" || op == "||") {
-        bool lv = toInt(lhsVal) != 0;
-        bool rv = toInt(rhsVal) != 0;
-        resultAny  = (op == "&&") ? (lv && rv) : (lv || rv);
-        resultType = std::make_shared<BoolType>();
-    }
-    else {
-        throw std::runtime_error("unsupported binary operator: " + op);
+        return std::make_shared<VarSymbol>(resultType, resultAny);
     }
 
-    return std::make_shared<VarSymbol>(resultType, resultAny);
+    // ccравнения “<”, “>”, “<=”, “>=”, “==”, “!=” для чисел 
+    if (op == "<" || op == ">" || op == "<=" || op == ">=" || op == "==" || op == "!=") {
+        auto toDouble = [&](const std::any& v)->double {
+            if (!v.has_value())     return 0.0;
+            if (v.type() == typeid(int))    return double(std::any_cast<int>(v));
+            if (v.type() == typeid(bool))   return std::any_cast<bool>(v) ? 1.0 : 0.0;
+            if (v.type() == typeid(char))   return double(std::any_cast<char>(v));
+            if (v.type() == typeid(float))  return double(std::any_cast<float>(v));
+            if (v.type() == typeid(double)) return         std::any_cast<double>(v);
+            return 0.0;
+        };
+        double l = toDouble(lhsVal), r = toDouble(rhsVal);
+        bool cmp;
+        if (op == "<")      cmp = (l < r);
+        else if (op == ">") cmp = (l > r);
+        else if (op == "<=") cmp = (l <= r);
+        else if (op == ">=") cmp = (l >= r);
+        else if (op == "==") cmp = (l == r);
+        else /* "!=" */     cmp = (l != r);
+        return std::make_shared<VarSymbol>(std::make_shared<BoolType>(), cmp);
+    }
+
+    throw std::runtime_error("unsupported binary operator: " + op);
 }
+
 
 
 std::shared_ptr<VarSymbol> Execute::unary_operation(std::shared_ptr<VarSymbol> baseSym,
@@ -303,6 +388,40 @@ std::shared_ptr<VarSymbol> Execute::unary_operation(std::shared_ptr<VarSymbol> b
     std::any v = baseSym->value;
     std::any resultAny;
     std::shared_ptr<Type> resultType = baseSym->type;
+
+     if (op == "++") {
+        if (v.type() == typeid(int)) {
+            int x = std::any_cast<int>(v) + 1;
+            baseSym->value = x;
+            resultAny = x;
+        }
+        else if (v.type() == typeid(double)) {
+            double x = std::any_cast<double>(v) + 1.0;
+            baseSym->value = x;
+            resultAny = x;
+        }
+        else {
+            throw std::runtime_error("unsupported operand type for prefix ++");
+        }
+        // т ип остается тем же, что и у baseSym
+        return std::make_shared<VarSymbol>(resultType, resultAny);
+    }
+    if (op == "--") {
+        if (v.type() == typeid(int)) {
+            int x = std::any_cast<int>(v) - 1;
+            baseSym->value = x;
+            resultAny = x;
+        }
+        else if (v.type() == typeid(double)) {
+            double x = std::any_cast<double>(v) - 1.0;
+            baseSym->value = x;
+            resultAny = x;
+        }
+        else {
+            throw std::runtime_error("unsupported operand type for prefix --");
+        }
+        return std::make_shared<VarSymbol>(resultType, resultAny);
+    }
 
     if (op == "+") {
         if (v.type() == typeid(int))      resultAny = +std::any_cast<int>(v);
@@ -332,11 +451,11 @@ std::shared_ptr<VarSymbol> Execute::unary_operation(std::shared_ptr<VarSymbol> b
 
 std::shared_ptr<VarSymbol> Execute::postfix_operation(std::shared_ptr<VarSymbol> baseSym,
                                                       std::string& op) {
-    // Берём текущее значение из baseSym
+    // берём текущее значение из baseSym
     std::any oldVal = baseSym->value;
     std::any newVal;
 
-    // Только для int и double поддерживаем ++/--
+    
     if (oldVal.type() == typeid(int)) {
         int x = std::any_cast<int>(oldVal);
         if (op == "++")      newVal = x + 1;
@@ -353,10 +472,10 @@ std::shared_ptr<VarSymbol> Execute::postfix_operation(std::shared_ptr<VarSymbol>
         throw std::runtime_error("unsupported type for postfix operator: " + op);
     }
 
-    // Обновляем значение в самой переменной
+    // обновляем значение в самой переменной
     baseSym->value = newVal;
 
-    // Возвращаем новый VarSymbol, содержащий прежнее значение (oldVal)
+    // возвращаем новый VarSymbol, содержащий прежнее значение (oldVal)
     return std::make_shared<VarSymbol>(baseSym->type, oldVal);
 }
 
@@ -368,7 +487,6 @@ bool Execute::can_convert(const std::shared_ptr<Type>& from, const std::shared_p
 }
 
 void Execute::visit(ASTNode&) {
-    // Ничего не делаем
 }
 
 void Execute::visit(TranslationUnit& unit) {
@@ -377,7 +495,6 @@ void Execute::visit(TranslationUnit& unit) {
     }
 }
 
-// ——— ДЕКЛАРАТОРЫ ———
 
 void Execute::visit(Declaration::SimpleDeclarator& node) {
 }
@@ -390,14 +507,12 @@ void Execute::visit(Declaration::InitDeclarator& node) {
 }
 void Execute::visit(VarDeclaration& node) {
     for (auto& initDecl : node.declarator_list) {
-        // -----------------------------
-        // 1) Определяем базовый varType
-        // -----------------------------
+        //vartype
         std::shared_ptr<Type> varType;
         std::any              initValue;
 
         if (node.type == "auto") {
-            // «auto»-объявление: вычисляем тип справа
+          
             if (!initDecl->initializer) {
                 throw std::runtime_error("auto‐declaration requires an initializer");
             }
@@ -410,7 +525,7 @@ void Execute::visit(VarDeclaration& node) {
             initValue = rhsSym->value;
         }
         else {
-            // Явный тип: либо базовый, либо структурный
+            // явный тип: либо базовый, либо структурный
             std::shared_ptr<Symbol> typeSym;
             try {
                 typeSym = match_symbol(node.type);
@@ -419,7 +534,7 @@ void Execute::visit(VarDeclaration& node) {
             }
             varType = typeSym->type;
 
-            // 1b) Если есть инициализатор, вычисляем значение справа
+            // если есть инициализатор, вычисляем значение справа
             if (initDecl->initializer) {
                 initDecl->initializer->accept(*this);
                 auto rhsSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
@@ -429,7 +544,7 @@ void Execute::visit(VarDeclaration& node) {
                 initValue = rhsSym->value;
             }
             else {
-                // Default-инициализация для «простых» (скалярных) типов
+                // default-инициализация 
                 if (dynamic_cast<IntegerType*>(varType.get())) {
                     initValue = int(0);
                 }
@@ -449,19 +564,15 @@ void Execute::visit(VarDeclaration& node) {
             }
         }
 
-        // -------------------------------------------------
-        // 2) Если PtrDeclarator, оборачиваем в PointerType:
-        // -------------------------------------------------
+        //ptrdeclarator -> pointertype
         if (dynamic_cast<Declaration::PtrDeclarator*>(initDecl->declarator.get())) {
             varType   = std::make_shared<PointerType>(varType);
-            initValue = std::any{};
         }
 
-        // -------------------------------------------------
-        // 3) Если varType — StructType, создаём новый экземпляр
-        // -------------------------------------------------
+
+        // если varType — StructType, создаём новый экземпляр
         if (auto structT = std::dynamic_pointer_cast<StructType>(varType)) {
-            // Найдем «шаблонный» StructSymbol для node.type
+            // найдем "шаблонный" StructSymbol для node.type
             std::shared_ptr<Symbol> tmplSymAny;
             try {
                 tmplSymAny = symbolTable->match_global(node.type);
@@ -473,13 +584,13 @@ void Execute::visit(VarDeclaration& node) {
                 throw std::runtime_error("Internal error: symbol '" + node.type + "' is not a StructSymbol");
             }
 
-            // Скопировать все VarSymbol-члены с дефолтными значениями
+            // скопировать все VarSymbol члены с дефолтными значениями
             std::unordered_map<std::string, std::shared_ptr<Symbol>> instance_members;
             for (auto& kv : tmplStruct->members) {
                 if (auto fld = std::dynamic_pointer_cast<VarSymbol>(kv.second)) {
-                    // Новый VarSymbol того же типа, со значением по умолчанию
+                    // новый VarSymbol того же типа, со значением по умолчанию
                     auto copyVar = std::make_shared<VarSymbol>(fld->type);
-                    // Если тип поля — int, float, bool или char, сразу задаем 0/0.0/false/'\0'
+                    // если тип поля — int, float, bool или char, сразу задаем 0/0.0/false/'\0'
                     if (dynamic_cast<IntegerType*>(fld->type.get())) {
                         copyVar->value = int(0);
                     }
@@ -492,16 +603,16 @@ void Execute::visit(VarDeclaration& node) {
                     else if (dynamic_cast<CharType*>(fld->type.get())) {
                         copyVar->value = char(0);
                     }
-                    // Для любых других (например, вложенных структур) оставляем std::any{}
+                    // для любых других (например, вложенных структур) оставляем std::any{}
                     instance_members[kv.first] = copyVar;
                 }
                 else if (auto mtd = std::dynamic_pointer_cast<FuncSymbol>(kv.second)) {
-                    // Для методов копируем ссылку, их тела будут выполняться при вызове
+                    // для методов копируем ссылку, их тела будут выполняться при вызове
                     instance_members[kv.first] = mtd;
                 }
             }
 
-            // Создать сам StructSymbol-экземпляр
+            // создать сам StructSymbol-экземпляр
             auto instanceStruct = std::make_shared<StructSymbol>(
                 std::static_pointer_cast<StructType>(varType),
                 instance_members
@@ -509,18 +620,16 @@ void Execute::visit(VarDeclaration& node) {
             initValue = instanceStruct;
         }
 
-        // -------------------------------------------------
-        // 4) Регистрируем глобальную переменную (если её нет)
-        // -------------------------------------------------
+       // регистрируем глобальныую переменную 
         const auto& varName = initDecl->declarator->name;
         if (!symbolTable->contains_symbol(varName)) {
             auto newVar = std::make_shared<VarSymbol>(varType);
             symbolTable->push_symbol(varName, newVar);
         }
 
-        // -------------------------------------------------
-        // 5) Получаем уже существующий VarSymbol и кладём initValue
-        // -------------------------------------------------
+
+        // получаем уже существующий VarSymbol и кладём initValue
+   
         auto baseSym = symbolTable->match_global(varName);
         auto existingVarSym = std::dynamic_pointer_cast<VarSymbol>(baseSym);
         if (!existingVarSym) {
@@ -536,7 +645,7 @@ void Execute::visit(VarDeclaration& node) {
 
 
 void Execute::visit(ParameterDeclaration& node) {
-    // 1) Определяем тип и значение так же, как раньше:
+    // определяем тип и значение так же, как раньше:
     auto typeName = node.type;
     std::shared_ptr<Type> pType = match_symbol(typeName)->type;
     auto name = node.init_declarator->declarator->name;
@@ -547,7 +656,7 @@ void Execute::visit(ParameterDeclaration& node) {
         value = std::dynamic_pointer_cast<VarSymbol>(current_value)->value;
     }
 
-    // 2) Не создаём новый VarSymbol, а берём тот, что уже создал Analyzer:
+    //  не создаём новый VarSymbol, а берём тот, что уже создал Analyzer:
     auto baseSym = symbolTable->match_global(name);
     auto existingParam = std::dynamic_pointer_cast<VarSymbol>(baseSym);
     if (!existingParam) {
@@ -556,15 +665,14 @@ void Execute::visit(ParameterDeclaration& node) {
             "' не найден в таблице, хотя Analyzer должен был его зарегистрировать"
         );
     }
-
-    // 3) Записываем туда вычисленное значение:
+    //  обновляем его значение
     existingParam->value = value;
     current_value = existingParam;
 }
 
 
 void Execute::visit(FuncDeclaration& node) {
-    // Попытка найти FuncSymbol в текущем скоупе
+    // попытка найти FuncSymbol в текущем скоупе
     std::shared_ptr<Symbol> baseSym;
     bool exists = true;
     try {
@@ -573,18 +681,16 @@ void Execute::visit(FuncDeclaration& node) {
         exists = false;
     }
 
-    // Если символ уже есть (например, метод struct или ранее зарегистрированная функция) — просто выходим
+    // если символ уже есть (например, метод struct или ранее зарегистрированная функция) - просто выходим
     if (exists) {
         current_value = nullptr;
         return;
     }
 
-    // Иначе — это топ-левел (глобальная) функция. Создаём FuncType и FuncSymbol и пушим его.
-    // 1) Определяем возвращаемый тип
+    // иначе — это топ-левел (глобальная) функция. Создаём FuncType и FuncSymbol и пушим его.
+    // определяем возвращаемый тип
     std::shared_ptr<Type> retType;
     if (node.type == "auto") {
-        // (для простоты предполагаем, что в вашей программе auto-функций нет, 
-        //  или они уже разрешены Analyzer'ом; можно выбросить исключение или трактовать как void)
         retType = std::make_shared<VoidType>();
     } else {
         auto retSym = match_symbol(node.type);
@@ -594,7 +700,7 @@ void Execute::visit(FuncDeclaration& node) {
         }
     }
 
-    // 2) Собираем типы параметров
+    //собираем типы параметров
     std::vector<std::shared_ptr<Type>> argTypes;
     for (auto& p : node.args) {
         auto pSym = match_symbol(p->type);
@@ -602,19 +708,19 @@ void Execute::visit(FuncDeclaration& node) {
         argTypes.push_back(pType);
     }
 
-    // 3) Создаём FuncType и FuncSymbol
+    // создаём FuncType и FuncSymbol
     auto fType = std::make_shared<FuncType>(retType, argTypes, node.is_readonly);
     auto fSym = std::make_shared<FuncSymbol>(fType, argTypes, node.is_readonly);
     fSym->declaration = &node;
 
-    // 4) Пушим в глобальный скоуп
+    
     symbolTable->push_symbol(node.declarator->name, fSym);
     current_value = nullptr;
 }
 
 
 void Execute::visit(StructDeclaration& node) {
-    // 1) Сперва находим уже существующий StructSymbol, который создал Analyzer
+    // находим уже существующий StructSymbol который создал Analyzer
     std::shared_ptr<Symbol> baseSym;
     try {
         baseSym = symbolTable->match_global(node.name);
@@ -627,29 +733,22 @@ void Execute::visit(StructDeclaration& node) {
         throw std::runtime_error("Internal error: символ " + node.name + " не является StructSymbol");
     }
 
-    // 2) Извлекаем его поле members (VarSymbol/FuncSymbol для каждого члена)
-    //    Эти member_symbols уже были заполнены Analyzer-ом.
     auto member_symbols = structSym->members;
 
-    // 3) Открываем вложенный scope и "заселяем" его всеми VarSymbol / FuncSymbol
-    //    из member_symbols, чтобы при рекурсивном вызове visit(...) они находились.
+    // открываем вложенный скоп и заселяем в него
     auto savedScope = symbolTable;
     symbolTable = symbolTable->create_new_table(savedScope);
     for (auto& kv : member_symbols) {
         symbolTable->push_symbol(kv.first, kv.second);
     }
 
-    // 4) Перескакиваем по VarDeclaration внутри тела struct, чтобы проинициализировать
-    //    поля (инициализаторами или default‐значениями). Тела методов пропускаем.
+  
     for (auto& m : node.members) {
         if (auto fldDecl = dynamic_cast<VarDeclaration*>(m.get())) {
-            // VarDeclaration инициализирует своё поле (initializer'ы),
-            // используя тот же visit(VarDeclaration&).
             fldDecl->accept(*this);
         }
         else if (auto mtdDecl = dynamic_cast<FuncDeclaration*>(m.get())) {
-            // Ничего не делаем с телом метода на объявлении:
-            // тело метода запустится только при вызове (FunctionCallExpression).
+
             continue;
         }
         else {
@@ -657,25 +756,20 @@ void Execute::visit(StructDeclaration& node) {
         }
     }
 
-    // 5) После того как все поля структуры инициализированы, возвращаем предыдущий scope
+   
     symbolTable = savedScope;
-
-    // 6) В current_value кладём найденный StructSymbol, 
-    //    чтобы, если кто-то сразу после struct-узла посмотрит current_value, он увидел именно его.
     current_value = structSym;
 }
 
 void Execute::visit(ArrayDeclaration& node) {
-    // 1) Сначала вычисляем размер:
+    
     node.size->accept(*this);
     int sz = std::any_cast<int>(
         std::dynamic_pointer_cast<VarSymbol>(current_value)->value
     );
 
-    // 2) Определяем тип элемента:
     auto elemType = match_symbol(node.type)->type;
 
-    // 3) Заводим вектор длины sz и заполняем “дефолтными” значениями:
     std::vector<std::any> data(sz);
     for (int i = 0; i < sz; ++i) {
         if      (dynamic_cast<IntegerType*>(elemType.get())) data[i] = int(0);
@@ -685,16 +779,11 @@ void Execute::visit(ArrayDeclaration& node) {
         else                                                  data[i] = std::any{};
     }
 
-    // 4) Если у ArrayDeclaration есть список инициализаторов,
-    //    проходим по нему и заполняем первые элементы массива:
-    //    (замените node.initializers на то, как у вас называется поле списка выражений)
     if (!node.initializer_list.empty()) {
-        // сколько элементов приходит в фигурных скобках
         int initCount = static_cast<int>(node.initializer_list.size());
         int limit = std::min(sz, initCount);
         for (int i = 0; i < limit; ++i) {
             node.initializer_list[i]->accept(*this);
-            // Ожидаем, что η приемлемые литералы и/или выражения дают VarSymbol
             auto valSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
             if (!valSym) {
                 throw std::runtime_error(
@@ -705,14 +794,13 @@ void Execute::visit(ArrayDeclaration& node) {
         }
     }
 
-    // 5) Регистрируем или находим VarSymbol для именованного массива:
+    // регистрируем или находим VarSymbol для именованного массива:
     std::shared_ptr<VarSymbol> arraySym;
     bool alreadyExists = true;
     try {
         auto sym = symbolTable->match_global(node.name);
         arraySym = std::dynamic_pointer_cast<VarSymbol>(sym);
         if (!arraySym) {
-            // Если нашли, но это не VarSymbol → ошибка
             throw std::runtime_error(
                 "Symbol '" + node.name + "' is not a variable"
             );
@@ -722,19 +810,13 @@ void Execute::visit(ArrayDeclaration& node) {
     }
 
     if (!alreadyExists) {
-        // 5.1) Создаём тип ArrayType для этой переменной:
         auto arrayType = std::make_shared<ArrayType>(elemType, node.size);
-        // 5.2) Создаём VarSymbol с этим типом:
         auto newArrSym = std::make_shared<VarSymbol>(arrayType);
-        // 5.3) Регистрируем в текущем symbolTable:
         symbolTable->push_symbol(node.name, newArrSym);
         arraySym = newArrSym;
     }
 
-    // 6) Кладём сформированный вектор data внутрь VarSymbol:
     arraySym->value = std::move(data);
-
-    // 7) Устанавливаем current_value, чтобы следующие выражения видели VarSymbol:
     current_value = arraySym;
 }
 
@@ -874,96 +956,117 @@ void Execute::visit(BinaryOperation& node) {
     current_value = binary_operation(lhsSym, node.op, rhsSym);
 }
 
+
 void Execute::visit(PrefixExpression& node) {
+    // сначала вычисляем "внутреннее" выражение и получаем VarSymbol или ArrayElementSymbol
     node.base->accept(*this);
     auto baseSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
     if (!baseSym) {
         throw std::runtime_error("prefix: base is not a variable");
     }
 
-    // Префиксный ++
-    if (node.op == "++") {
-        if (baseSym->value.type() == typeid(int)) {
-            int x = std::any_cast<int>(baseSym->value) + 1;
-            baseSym->value = x;
-            current_value = std::make_shared<VarSymbol>(baseSym->type, x);
-        }
-        else if (baseSym->value.type() == typeid(double)) {
-            double x = std::any_cast<double>(baseSym->value) + 1.0;
-            baseSym->value = x;
-            current_value = std::make_shared<VarSymbol>(baseSym->type, x);
+    if (node.op == "&") {
+        auto innerType = baseSym->type;
+        auto ptrType   = std::make_shared<PointerType>(innerType);
+        std::any ptrValue = baseSym; // «указатель» хранит shared_ptr<VarSymbol> или ArrayElementSymbol
+        current_value = std::make_shared<VarSymbol>(ptrType, ptrValue);
+        return;
+    }
+
+    if (node.op == "*") {
+        auto pType = std::dynamic_pointer_cast<PointerType>(baseSym->type);
+        if (!pType) throw std::runtime_error("cannot dereference non-pointer type");
+        if (!baseSym->value.has_value()) throw std::runtime_error("invalid pointer value");
+
+        std::shared_ptr<VarSymbol> pointedVar;
+        if (baseSym->value.type() == typeid(std::shared_ptr<VarSymbol>)) {
+            pointedVar = std::any_cast<std::shared_ptr<VarSymbol>>(baseSym->value);
         }
         else {
-            throw std::runtime_error("unsupported operand type for prefix ++");
+            auto arrPtr = std::any_cast<std::shared_ptr<ArrayElementSymbol>>(baseSym->value);
+            pointedVar = std::static_pointer_cast<VarSymbol>(arrPtr);
         }
+
+        if (!pointedVar) throw std::runtime_error("invalid pointer value");
+        current_value = pointedVar;
+        return;
     }
-    // Префиксный --
-    else if (node.op == "--") {
+
+    if (node.op == "++" || node.op == "--") {
         if (baseSym->value.type() == typeid(int)) {
-            int x = std::any_cast<int>(baseSym->value) - 1;
+            int x = std::any_cast<int>(baseSym->value);
+            if (node.op == "++")      x += 1;
+            else                      x -= 1;
             baseSym->value = x;
             current_value = std::make_shared<VarSymbol>(baseSym->type, x);
+            return;
         }
-        else if (baseSym->value.type() == typeid(double)) {
-            double x = std::any_cast<double>(baseSym->value) - 1.0;
+        if (baseSym->value.type() == typeid(double)) {
+            double x = std::any_cast<double>(baseSym->value);
+            if (node.op == "++")      x += 1.0;
+            else                      x -= 1.0;
             baseSym->value = x;
             current_value = std::make_shared<VarSymbol>(baseSym->type, x);
+            return;
         }
-        else {
-            throw std::runtime_error("unsupported operand type for prefix --");
-        }
+        throw std::runtime_error("unsupported operand for prefix " + node.op);
     }
-    // Все остальные унарные операторы («+», «-», «!» и т.п.)
-    else {
+
+    if (node.op == "+" || node.op == "-" || node.op == "!") {
         current_value = unary_operation(baseSym, node.op);
+        return;
     }
+
+    throw std::runtime_error("unsupported prefix operator: " + node.op);
 }
 
 
 
 void Execute::visit(PostfixIncrementExpression& node) {
-    // 1) Сначала вычисляем базу
     node.base->accept(*this);
     auto baseSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
-
-    // 2) Оператор всегда "++" для этого узла
     std::string op = "++";
 
-    // 3) Вызываем helper
     auto resultSym = postfix_operation(baseSym, op);
 
-    // 4) Помещаем старое значение в current_value
     current_value = resultSym;
 }
 
 void Execute::visit(PostfixDecrementExpression& node) {
-    // 1) Сначала вычисляем базу
     node.base->accept(*this);
     auto baseSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
 
-    // 2) Оператор всегда "--" для этого узла
     std::string op = "--";
 
-    // 3) Вызываем helper
     auto resultSym = postfix_operation(baseSym, op);
 
-    // 4) Помещаем старое значение в current_value
     current_value = resultSym;
 }
 
 
 
 void Execute::visit(FunctionCallExpression& node) {
-    // === Шаг 0: если это встроенный вызов print(...) — обрабатываем вручную ===
-    if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
-     if (ident->name == "print") {
+      if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
+        if (ident->name == "print") {
             for (size_t i = 0; i < node.args.size(); ++i) {
                 node.args[i]->accept(*this);
                 auto vsym = std::dynamic_pointer_cast<VarSymbol>(current_value);
                 if (!vsym) {
                     std::cout << "<<?>"; 
-                } else {
-                    if (vsym->value.type() == typeid(std::string)) {
+                }
+                else {
+                    // если указатель вывводим адрес
+                    if (dynamic_cast<PointerType*>(vsym->type.get())) {
+                        if (vsym->value.has_value() &&
+                            vsym->value.type() == typeid(std::shared_ptr<VarSymbol>))
+                        {
+                            auto pointed = std::any_cast<std::shared_ptr<VarSymbol>>(vsym->value);
+                            std::cout << pointed.get();
+                        } else {
+                            std::cout << "<ptr>";
+                        }
+                    }
+                    else if (vsym->value.type() == typeid(std::string)) {
                         std::string s = std::any_cast<std::string>(vsym->value);
                         if (s.size() >= 2 && s.front() == '\"' && s.back() == '\"') {
                             s = s.substr(1, s.size() - 2);
@@ -1001,8 +1104,9 @@ void Execute::visit(FunctionCallExpression& node) {
 
             current_value = std::make_shared<VarSymbol>(std::make_shared<IntegerType>(), 0);
             return;
-        }   
+        }
     }
+
 
     if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
         if (ident->name == "read") {
@@ -1015,24 +1119,21 @@ void Execute::visit(FunctionCallExpression& node) {
             auto arrElemSym = std::dynamic_pointer_cast<ArrayElementSymbol>(current_value);
 
             if (arrElemSym) {
-                // Берём родительский VarSymbol массива и индекс
-                auto parentArr = arrElemSym->parentArray;   // VarSymbol самого массива
-                int idx       = arrElemSym->index;         // индекс ячейки
-
-                // Проверим, что parentArr действительно хранит std::vector<std::any>
+               
+                auto parentArr = arrElemSym->parentArray;  
+                int idx       = arrElemSym->index;         
                 auto &vec = std::any_cast<std::vector<std::any>&>(parentArr->value);
 
-                // Теперь посмотрим на тип элемента (elemType)
                 auto elemType = std::dynamic_pointer_cast<ArrayType>(parentArr->type)->get_base_type();
 
-                // В зависимости от elemType читаем из std::cin в нужный C++-тип
+
                 if (dynamic_cast<IntegerType*>(elemType.get())) {
                     int v;
                     if (!(std::cin >> v)) {
                         throw std::runtime_error("read(): failed to read an integer from stdin");
                     }
                     vec[idx] = v;
-                    arrElemSym->value = v; // обновляем текущее значение элемента
+                    arrElemSym->value = v; 
                 }
                 else if (dynamic_cast<FloatType*>(elemType.get())) {
                     double v;
@@ -1070,12 +1171,12 @@ void Execute::visit(FunctionCallExpression& node) {
                     throw std::runtime_error("read(): unsupported array-element type");
                 }
 
-                // Возвращаем в current_value тот же ArrayElementSymbol, чтобы дальше его можно было считать
+             
                 current_value = arrElemSym;
                 return;
             }
 
-            // 3) Если это просто переменная (VarSymbol), а не элемент массива
+            // если это просто переменная, то читаем в неё значение
             if (targetSym) {
                 auto varType = targetSym->type;
 
@@ -1135,7 +1236,7 @@ void Execute::visit(FunctionCallExpression& node) {
         argVals.push_back(vsym->value);
     }
 
-    // 2) Ветка: вызов метода структуры p.move(...)
+    // вызов метода структуры
     if (auto mexpr = dynamic_cast<StructMemberAccessExpression*>(node.base.get())) {
         mexpr->accept(*this);
         auto funcSym = std::dynamic_pointer_cast<FuncSymbol>(current_value);
@@ -1175,7 +1276,7 @@ void Execute::visit(FunctionCallExpression& node) {
         return;
     }
 
-    // 3) Ветка: «свободная» функция f(...)
+    // свободная функция
     if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
         auto baseSym = symbolTable->match_global(ident->name);
         auto funcSym = std::dynamic_pointer_cast<FuncSymbol>(baseSym);
@@ -1217,7 +1318,6 @@ void Execute::visit(FunctionCallExpression& node) {
         return;
     }
 
-    // 4) Если ни то, ни другое — ошибка
     throw std::runtime_error("FunctionCallExpression: base is not an identifier or method");
 }
 
@@ -1272,9 +1372,50 @@ void Execute::visit(BoolLiteral& node) {
     current_value = std::make_shared<VarSymbol>(std::make_shared<BoolType>(), node.value);
 }
 
-void Execute::visit(IdentifierExpression& node) {
-    current_value = symbolTable->match_global(node.name);
+void Execute::visit(NullPtrLiteral& node) {
+    current_value = std::make_shared<VarSymbol>(std::make_shared<NullPtrType>());
 }
+
+void Execute::visit(IdentifierExpression& node) {
+    // cначала находим символ в таблице:
+    auto sym = symbolTable->match_global(node.name);
+    auto varSym = std::dynamic_pointer_cast<VarSymbol>(sym);
+    if (!varSym) {
+        // если это не VarSymbol просто вернём его "как есть"
+        current_value = sym;
+        return;
+    }
+
+    // если тип VarSymbol - ArrayType, то при обращении к имени массива
+    // мы делаем «decay» в указатель на первый элемент:
+    if (auto arrType = std::dynamic_pointer_cast<ArrayType>(varSym->type)) {
+        // получаем ссылку на вектор-данных:
+        auto& vec = std::any_cast<std::vector<std::any>&>(varSym->value);
+        // если массив пустой (теоретически), invalid pointer:
+        if (vec.empty()) {
+              std::cout << "errror 3";
+            throw std::runtime_error("invalid pointer value");
+        }
+        auto elemType = arrType->get_base_type();
+        std::any firstVal = vec[0];
+        auto elemSymbol0 = std::make_shared<ArrayElementSymbol>(
+            elemType,
+            firstVal,
+            varSym,
+            /*index=*/0
+        );
+        // создаём новый VarSymbol типа «pointer to elemType» и кладём в него указатель на elemSymbol0:
+        auto ptrType = std::make_shared<PointerType>(elemType);
+        auto ptrSym  = std::make_shared<VarSymbol>(ptrType);
+        ptrSym->value = elemSymbol0;
+        current_value = ptrSym;
+        return;
+    }
+
+    // если тип VarSymbol - не массив, просто возвращаем его
+    current_value = varSym;
+}
+
 
 void Execute::visit(ParenthesizedExpression& node) {
     node.expression->accept(*this);

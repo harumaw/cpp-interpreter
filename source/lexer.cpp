@@ -271,6 +271,7 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TokenType::END: return "END";
         case TokenType::NAMESPACE: return "NAMESPACE";
         case TokenType::SCOPE: return "SCOPE";
+        case TokenType::NULLPTR: return "NULLPTR";
 
         default: return "UNKNOWN";
     }
@@ -353,7 +354,8 @@ std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"static_assert", TokenType::STATICASSERT},
     {"namespace", TokenType::NAMESPACE},
     {"const", TokenType::CONST},
-    {"constexpr", TokenType::CONSTEXPR}
+    {"constexpr", TokenType::CONSTEXPR},
+    {"nullptr", TokenType::NULLPTR}
 };
 
 

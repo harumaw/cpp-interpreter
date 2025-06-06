@@ -35,9 +35,13 @@ void Printer::visit(Declaration::SimpleDeclarator& node) {
 
 void Printer::visit(Declaration::PtrDeclarator& node) {
     indent();
-    std::cout << "PtrDeclarator: *" << node.name << "\n";
+    std::cout << "PtrDeclarator: *\n";
+    ++indent_level;
+    if (node.inner) {
+        node.inner->accept(*this);
+    }
+    --indent_level;
 }
-
 void Printer::visit(Declaration::InitDeclarator& node) {
     indent();
     std::cout << "InitDeclarator:\n";
@@ -305,6 +309,11 @@ void Printer::visit(StringLiteral& node) {
 void Printer::visit(BoolLiteral& node) {
     indent();
     std::cout << "BoolLiteral: " << (node.value ? "true" : "false") << "\n";
+}
+
+void Printer::visit(NullPtrLiteral&) {
+    indent();
+    std::cout << "NullPtrLiteral\n";
 }
 
 void Printer::visit(ParenthesizedExpression& node) {

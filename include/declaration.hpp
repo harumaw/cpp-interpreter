@@ -24,8 +24,9 @@ struct Declaration::SimpleDeclarator : public Declaration::Declarator{
 };
 
 struct Declaration::PtrDeclarator : public Declaration::Declarator{
-	using Declarator::Declarator;
+	std::shared_ptr<Declarator> inner;
 
+	PtrDeclarator(const std::shared_ptr<Declarator>&);
 	void accept(Visitor&) override;
 };
 

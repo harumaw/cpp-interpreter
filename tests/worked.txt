@@ -158,3 +158,38 @@ int main() {
 
     return px + py + f + s + c + ch;
 }
+
+
+int main(){
+    print("Введите два числа:");
+    int c;
+    int e;
+
+    int a = read(c);
+    int b = read(e);
+
+    int sum = a + b;
+    print("Сумма = ", sum);
+}
+
+
+
+int main() {
+    int value = 42;
+    int *p1 = &value;
+    int **p2 = &p1;
+    int ***p3 = &p2;
+    int ****p4 = &p3;
+
+    // Разыменовываем каждый уровень указателя:
+    print(p1);    // распечатает 42
+    print(**p2);   // распечатает 42
+    print(***p3);  // распечатает 42
+    print(****p4); // распечатает 42
+
+    // Остальной код
+    int x = ****p4; // x == 42
+    print(value);   // тоже распечатает 42
+
+    return 0;
+}

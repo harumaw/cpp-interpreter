@@ -91,6 +91,7 @@ enum class TokenType {
         RETURN,
         NAMESPACE,
         CONSTEXPR,
+        NULLPTR,
     
       
         END
