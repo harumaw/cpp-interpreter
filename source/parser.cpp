@@ -25,39 +25,94 @@ std::shared_ptr<TranslationUnit> Parser::parse() {
  
 
 bool Parser::is_type_specifier() {
-     if (check_token(TokenType::CONST))     return true;
+    if (check_token(TokenType::CONST))     return true;
     if (check_token(TokenType::NAMESPACE)) return true;
     if (check_token(TokenType::TYPE)      ||
         check_token(TokenType::STRUCT))   return true;
     if (check_token(TokenType::ID) &&
-        peek_token(1).type == TokenType::ID)
-        return true;
-    return false;
-}
+         peek_token(1).type == TokenType::ID)
+         return true;
+     return false;
+ }
 
 declaration Parser::parse_declaration() {
-    if(match_token(TokenType::NAMESPACE)){
+    if (match_token(TokenType::NAMESPACE)) {
         return parse_namespace_declaration();
     }
-    else if (match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)
-            || match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT)) {
+    else if (
+        // ⟨TYPE ID (⟩
+        match_pattern(TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+        // ⟨TYPE * ID (⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+        // ⟨TYPE ** ID (⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+        // ⟨TYPE *** ID (⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+        // ⟨TYPE **** ID (⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+
+        // ⟨CONST TYPE ID (⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+        // ⟨CONST TYPE * ID (⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+        // ⟨CONST TYPE ** ID (⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+        // ⟨CONST TYPE *** ID (⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT) ||
+        // ⟨CONST TYPE **** ID (⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::PARENTHESIS_LEFT)
+    ) {
         return parse_function_declaration();
     }
-    else if(match_pattern(TokenType::TYPE, TokenType::ID, TokenType::INDEX_LEFT)){
+    else if (
+        // ⟨TYPE ID [⟩
+        match_pattern(TokenType::TYPE, TokenType::ID, TokenType::INDEX_LEFT) ||
+        // ⟨TYPE * ID [⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID, TokenType::INDEX_LEFT) ||
+        // ⟨TYPE ** ID [⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::INDEX_LEFT) ||
+        // ⟨TYPE *** ID [⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::INDEX_LEFT) ||
+        // ⟨TYPE **** ID [⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID, TokenType::INDEX_LEFT)
+    ) {
         return parse_array_declaration();
-
     }
-    else if (match_pattern(TokenType::TYPE, TokenType::ID) || match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID) || match_pattern(TokenType::ID, TokenType::ID) || match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::ID)) {
-        
+    else if (
+        // ⟨TYPE ID⟩
+        match_pattern(TokenType::TYPE, TokenType::ID) ||
+        // ⟨TYPE * ID⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID) ||
+        // ⟨TYPE ** ID⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID) ||
+        // ⟨TYPE *** ID⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID) ||
+        // ⟨TYPE **** ID⟩
+        match_pattern(TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID) ||
+
+        // ⟨CONST TYPE ID⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::ID) ||
+        // ⟨CONST TYPE * ID⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::MULTIPLY, TokenType::ID) ||
+        // ⟨CONST TYPE ** ID⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID) ||
+        // ⟨CONST TYPE *** ID⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID) ||
+        // ⟨CONST TYPE **** ID⟩
+        match_pattern(TokenType::CONST, TokenType::TYPE, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::MULTIPLY, TokenType::ID) ||
+
+        match_pattern(TokenType::ID, TokenType::ID)
+    ) {
         return parse_var_declaration();
     }
     else if (match_pattern(TokenType::STRUCT, TokenType::ID)) {
-        return parse_struct_declaration();  
+        return parse_struct_declaration();
     }
     else {
-            throw std::runtime_error("Declaration : Unexpected token " + tokens[offset].value);
+        throw std::runtime_error("Declaration : Unexpected token " + tokens[offset].value);
     }
 }
+
 
 name_space_declaration Parser::parse_namespace_declaration() {
 
@@ -246,16 +301,22 @@ init_declarator Parser::parse_init_declarator() {
 }
 
 declarator Parser::parse_declarator() {
-    if (match_pattern(TokenType::MULTIPLY, TokenType::ID)) {
+    int pointer_level = 0;
+    while (check_token(TokenType::MULTIPLY)) {
         extract_token(TokenType::MULTIPLY);
-        return std::make_shared<Declaration::PtrDeclarator>(extract_token(TokenType::ID));
-    } else if (check_token(TokenType::ID)) {
-        return std::make_shared<Declaration::SimpleDeclarator>(extract_token(TokenType::ID));
+        pointer_level++;
+    }
+    if (check_token(TokenType::ID)) {
+        auto name = extract_token(TokenType::ID);
+        std::shared_ptr<Declaration::Declarator> decl = std::make_shared<Declaration::SimpleDeclarator>(name);
+        for (int i = 0; i < pointer_level; ++i) {
+            decl = std::make_shared<Declaration::PtrDeclarator>(decl);
+        }
+        return decl;
     } else {
         throw std::runtime_error("Declarator : Unexpected token " + tokens[offset].value);
     }
 }
-
 
 //block nazvatb
 statement Parser::parse_statement() {
@@ -547,6 +608,16 @@ expression Parser::parse_unary_expression(){ // a 2 ls + - and logical
         auto base = parse_postfix_expression();
         return std::make_shared<PrefixExpression>(op, base);
     }
+    if(match_token(TokenType::MULTIPLY)){ // poka dlya odnogo pointera
+        auto op = tokens[offset-1].value;
+        auto base = parse_unary_expression();
+        return std::make_shared<PrefixExpression>(op, base);
+    }
+    if(match_token(TokenType::BIT_AND)){
+        auto op = tokens[offset-1].value;
+        auto base = parse_unary_expression();
+        return std::make_shared<PrefixExpression>(op, base);
+    }
     return parse_postfix_expression();
 }
 
@@ -586,12 +657,12 @@ expression Parser::parse_postfix_expression() {
             left = std::make_shared<SubscriptExpression>(left, arg);
         }
         if (match_token(TokenType::PARENTHESIS_LEFT)) {
-            std::cout << tokens[offset].value << std::endl;
+            //std::cout << tokens[offset].value << std::endl;
             std::vector<std::shared_ptr<Expression>> args;
             while (!check_token(TokenType::PARENTHESIS_RIGHT)) {
                 auto arg = parse_expression();
                 args.push_back(arg);
-                std::cout << tokens[offset].value << std::endl;
+                //std::cout << tokens[offset].value << std::endl;
                 if (match_token(TokenType::COMMA)) {
                     continue; 
                 } else if (check_token(TokenType::PARENTHESIS_RIGHT)) {
@@ -642,7 +713,9 @@ expression Parser::parse_base() {
         auto val = tokens[offset++].value;
         return std::make_shared<BoolLiteral>(val);
     }
-
+    if(match_token(TokenType::NULLPTR)){
+        return std::make_shared<NullPtrLiteral>();
+    }
     if (check_token(TokenType::ID)) {
         auto name = extract_token(TokenType::ID);
         return std::make_shared<IdentifierExpression>(name);
@@ -652,7 +725,6 @@ expression Parser::parse_base() {
 
     throw std::runtime_error("parse base error " + tokens[offset].value);
 }
-
 
 
 

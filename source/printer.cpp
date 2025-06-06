@@ -35,9 +35,13 @@ void Printer::visit(Declaration::SimpleDeclarator& node) {
 
 void Printer::visit(Declaration::PtrDeclarator& node) {
     indent();
-    std::cout << "PtrDeclarator: *" << node.name << "\n";
+    std::cout << "PtrDeclarator: *\n";
+    ++indent_level;
+    if (node.inner) {
+        node.inner->accept(*this);
+    }
+    --indent_level;
 }
-
 void Printer::visit(Declaration::InitDeclarator& node) {
     indent();
     std::cout << "InitDeclarator:\n";
@@ -78,6 +82,7 @@ void Printer::visit(FuncDeclaration& node) {
     indent();
     std::cout << "FuncDeclaration: "
               << (node.is_const ? "const " : "") << node.type << "\n";
+    std::cout<< (node.is_readonly ? "readonly " : "");
     ++indent_level;
     node.declarator->accept(*this);
     std::cout << "\n";
@@ -87,6 +92,8 @@ void Printer::visit(FuncDeclaration& node) {
     for (auto& arg : node.args) {
         arg->accept(*this);
     }
+
+    
     --indent_level;
     if (node.body) {
         node.body->accept(*this);
@@ -302,6 +309,11 @@ void Printer::visit(StringLiteral& node) {
 void Printer::visit(BoolLiteral& node) {
     indent();
     std::cout << "BoolLiteral: " << (node.value ? "true" : "false") << "\n";
+}
+
+void Printer::visit(NullPtrLiteral&) {
+    indent();
+    std::cout << "NullPtrLiteral\n";
 }
 
 void Printer::visit(ParenthesizedExpression& node) {

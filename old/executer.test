@@ -1,0 +1,447 @@
+void Execute::visit(FuncDeclaration& node) {
+    std::vector<std::shared_ptr<Type>> argTypes;
+    for (auto& arg : node.args) {
+        arg->init_declarator->accept(*this);
+        auto vsym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+        argTypes.push_back(vsym->type);
+    }
+    
+    auto retType = match_symbol(node.type)->type;
+    auto funcType = std::make_shared<FuncType>(retType, argTypes, node.is_readonly);
+    
+    auto funcSym = std::make_shared<FuncSymbol>(funcType, argTypes, node.is_readonly);
+    symbolTable->push_symbol(node.declarator->name, funcSym);
+    
+    auto savedScope = symbolTable;
+    symbolTable = symbolTable->create_new_table(savedScope);
+    
+    for (auto& arg : node.args) {
+        arg->init_declarator->accept(*this);
+    }
+    
+    node.body->accept(*this);
+    
+    symbolTable = savedScope;
+}
+
+void Execute::visit(StructDeclaration& node) {
+    auto structName = node.name;
+    symbolTable = symbolTable->create_new_table(symbolTable);
+    for (auto& member : node.members) {
+        member->accept(*this);
+    }
+    auto savedScope = symbolTable;
+    auto symbols = savedScope->get_symbols();
+    symbolTable = symbolTable->get_prev_table();
+
+    std::unordered_map<std::string, std::shared_ptr<Type>> data_members;
+    std::unordered_map<std::string, std::shared_ptr<FuncType>> methods;
+    std::unordered_map<std::string, std::shared_ptr<Symbol>> member_symbols;
+
+    for (auto& kv : symbols) {
+        auto name = kv.first;
+        auto sym  = kv.second;
+        if (auto vs = std::dynamic_pointer_cast<VarSymbol>(sym)) {
+            data_members[name] = vs->type;
+            member_symbols[name] = vs;
+        } else if (auto fs = std::dynamic_pointer_cast<FuncSymbol>(sym)) {
+            auto ft = std::dynamic_pointer_cast<FuncType>(fs->type);
+            methods[name] = ft;
+            member_symbols[name] = fs;
+        }
+    }
+
+    auto structType = std::make_shared<StructType>(data_members, methods);
+    auto structSym  = std::make_shared<StructSymbol>(structType, member_symbols);
+    symbolTable->push_symbol(structName, structSym);
+    current_value = structSym;
+}
+
+
+void Execute::visit(ParameterDeclaration& node) {
+    auto paramType = match_symbol(node.type)->type;
+
+    auto name = node.init_declarator->declarator->name;
+    auto vsym = std::make_shared<VarSymbol>(paramType, std::any{});
+
+    if (node.init_declarator->initializer) {
+        node.init_declarator->initializer->accept(*this);
+        vsym->value = std::dynamic_pointer_cast<VarSymbol>(current_value)->value;
+    }
+
+    symbolTable->push_symbol(name, vsym);
+    current_value = vsym;
+}
+
+
+void Execute::visit(ArrayDeclaration& node) {
+    node.size->accept(*this);
+    int sz = std::any_cast<int>(std::dynamic_pointer_cast<VarSymbol>(current_value)->value);
+    auto elemType = match_symbol(node.type)->type;
+    std::vector<std::any> data(sz);
+    for (int i = 0; i < sz; ++i) {
+        if (dynamic_cast<IntegerType*>(elemType.get()))          data[i] = 0;
+        else if (dynamic_cast<FloatType*>(elemType.get()))       data[i] = 0.0;
+        else if (dynamic_cast<BoolType*>(elemType.get()))        data[i] = false;
+        else if (dynamic_cast<CharType*>(elemType.get()))        data[i] = char(0);
+        else data[i] = std::any{};
+    }
+    auto arrType = std::make_shared<ArrayType>(elemType, node.size);
+    auto vsym = std::make_shared<VarSymbol>(arrType, data);
+    symbolTable->push_symbol(node.name, vsym);
+    current_value = vsym;
+}
+
+void Execute::visit(NameSpaceDeclaration& node) {
+    auto saved = symbolTable;
+    symbolTable = symbolTable->create_new_table(symbolTable);
+    for (auto& decl : node.declarations) {
+        decl->accept(*this);
+    }
+    auto nsSym = std::make_shared<NamespaceSymbol>(symbolTable);
+    symbolTable = saved;
+    symbolTable->push_symbol(node.name, nsSym);
+    current_value = nsSym;
+}
+
+void Execute::visit(CompoundStatement& node) {
+    auto saved = symbolTable;
+    symbolTable = symbolTable->create_new_table(symbolTable);
+    for (auto& stmt : node.statements) {
+        stmt->accept(*this);
+    }
+    symbolTable = saved;
+}
+
+void Execute::visit(DeclarationStatement& node) {
+    node.declaration->accept(*this);
+}
+
+void Execute::visit(ExpressionStatement& node) {
+    node.expression->accept(*this);
+}
+
+void Execute::visit(ConditionalStatement& node) {
+    node.if_branch.first->accept(*this);
+    auto cv = std::dynamic_pointer_cast<VarSymbol>(current_value)->value;
+    bool cond = (cv.type() == typeid(bool) ? std::any_cast<bool>(cv) : std::any_cast<int>(cv) != 0);
+    if (cond) {
+        node.if_branch.second->accept(*this);
+    } else if (node.else_branch) {
+        node.else_branch->accept(*this);
+    }
+}
+
+void Execute::visit(WhileStatement& node) {
+    while (true) {
+        node.condition->accept(*this);
+        auto cv = std::dynamic_pointer_cast<VarSymbol>(current_value)->value;
+        bool cond = (cv.type() == typeid(bool) ? std::any_cast<bool>(cv) : std::any_cast<int>(cv) != 0);
+        if (!cond) break;
+        try {
+            node.statement->accept(*this);
+        } catch (ContinueException&) {
+            continue;
+        } catch (BreakException&) {
+            break;
+        }
+    }
+}
+
+void Execute::visit(ForStatement& node) {
+    if (node.initialization) node.initialization->accept(*this);
+    while (true) {
+        if (node.condition) {
+            node.condition->accept(*this);
+            auto cv = std::dynamic_pointer_cast<VarSymbol>(current_value)->value;
+            bool cond = (cv.type() == typeid(bool) ? std::any_cast<bool>(cv) : std::any_cast<int>(cv) != 0);
+            if (!cond) break;
+        }
+        try {
+            node.body->accept(*this);
+        } catch (ContinueException&) {
+            // fall through to increment
+        } catch (BreakException&) {
+            break;
+        }
+        if (node.increment) node.increment->accept(*this);
+    }
+}
+
+void Execute::visit(ReturnStatement& node) {
+    if (node.expression) {
+        node.expression->accept(*this);
+        auto rv = std::dynamic_pointer_cast<VarSymbol>(current_value)->value;
+        throw ReturnException{rv};
+    } else {
+        throw ReturnException{std::any{}};
+    }
+}
+
+void Execute::visit(BreakStatement& /*node*/) {
+    throw BreakException{};
+}
+
+void Execute::visit(ContinueStatement& /*node*/) {
+    throw ContinueException{};
+}
+
+void Execute::visit(StructMemberAccessExpression& node) {
+    // вычисляем «левое» выражение, например: p
+    node.base->accept(*this);
+    // current_value теперь VarSymbol, value внутри — shared_ptr<StructSymbol>
+    auto varSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+    auto structSym = std::any_cast<std::shared_ptr<StructSymbol>>(varSym->value);
+
+    // теперь в structSym->members лежат VarSymbol/FuncSymbol для каждого члена
+    if (auto fld = std::dynamic_pointer_cast<VarSymbol>(structSym->members[node.member])) {
+        // поле: возвращаем его VarSymbol как current_value
+        current_value = fld;
+    }
+    else if (auto method = std::dynamic_pointer_cast<FuncSymbol>(structSym->members[node.member])) {
+        // метод: возвращаем FuncSymbol
+        current_value = method;
+    }
+    else {
+        throw std::runtime_error("no such member: " + node.member);
+    }
+}
+
+
+void Execute::visit(DoWhileStatement& node) {
+    do {
+        node.statement->accept(*this);
+        node.condition->accept(*this);
+        auto cv = std::dynamic_pointer_cast<VarSymbol>(current_value)->value;
+        bool cond = (cv.type() == typeid(bool) ? std::any_cast<bool>(cv) : std::any_cast<int>(cv) != 0);
+        if (!cond) break;
+    } while (true);
+}
+
+
+void Execute::visit(BinaryOperation& node) {
+    // Вычисляем левое выражение
+    node.lhs->accept(*this);
+    auto lhsSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+    auto lhsVal = lhsSym->value;
+    auto lhsType = lhsSym->type;
+
+    // Вычисляем правое выражение
+    node.rhs->accept(*this);
+    auto rhsSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+    auto rhsVal = rhsSym->value;
+    auto rhsType = rhsSym->type;
+
+    // Производим арифметику или сравнение
+    std::any resultAny = binary_operation(lhsVal, node.op, rhsVal);
+
+    // Определяем результирующий тип: если оба арифметические, выбираем «больший» ранг
+    std::shared_ptr<Type> resultType;
+    if (dynamic_cast<Arithmetic*>(lhsType.get()) && dynamic_cast<Arithmetic*>(rhsType.get())) {
+        int lhsRank = (dynamic_cast<FloatType*>(lhsType.get()) ? 2 : 1);
+        int rhsRank = (dynamic_cast<FloatType*>(rhsType.get()) ? 2 : 1);
+        resultType = (lhsRank >= rhsRank) ? lhsType : rhsType;
+    } else {
+        // результат булевого сравнения или логики всегда bool
+        resultType = std::make_shared<BoolType>();
+    }
+
+    current_value = std::make_shared<VarSymbol>(resultType, resultAny);
+}
+
+void Execute::visit(PrefixExpression& node) {
+    // Вычисляем базу
+    node.base->accept(*this);
+    auto baseSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+    auto baseVal = baseSym->value;
+
+    // Если ++ или --, изменяем значение «на месте»
+    if (node.op == "++" || node.op == "--") {
+        std::any newVal = postfix_operation(baseVal, node.op);
+        baseSym->value = newVal;
+        current_value = std::make_shared<VarSymbol>(baseSym->type, newVal);
+    } else {
+        // Унарный + или -
+        std::any resultAny = unary_operation(baseVal, node.op);
+        current_value = std::make_shared<VarSymbol>(baseSym->type, resultAny);
+    }
+}
+
+void Execute::visit(PostfixIncrementExpression& node) {
+    node.base->accept(*this);
+    auto baseSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+    auto baseVal = baseSym->value;
+    std::any newVal = postfix_operation(baseVal, node.op);
+    // возвращаем старое значение, а в переменной сохраняем новое
+    current_value = std::make_shared<VarSymbol>(baseSym->type, baseVal);
+    baseSym->value = newVal;
+}
+
+void Execute::visit(PostfixDecrementExpression& node) {
+    node.base->accept(*this);
+    auto baseSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+    auto baseVal = baseSym->value;
+    std::any newVal = postfix_operation(baseVal, node.op);
+    current_value = std::make_shared<VarSymbol>(baseSym->type, baseVal);
+    baseSym->value = newVal;
+}
+
+void Execute::visit(FunctionCallExpression& node) {
+    // Собираем значения аргументов
+    std::vector<std::any> argVals;
+    for (auto& arg : node.args) {
+        arg->accept(*this);
+        argVals.push_back(std::dynamic_pointer_cast<VarSymbol>(current_value)->value);
+    }
+
+    // Получаем символ функции (имя в node.base)
+    if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
+        auto fSym = std::dynamic_pointer_cast<FuncSymbol>( symbolTable->match_global(ident->name) );
+        auto fType = std::dynamic_pointer_cast<FuncType>(fSym->type);
+
+        // Новый scope для параметров и тела
+        auto saved = symbolTable;
+        symbolTable = symbolTable->create_new_table(saved);
+
+        // Привязываем параметры: fType->get_args() и fSym->declaration->args
+        auto& paramTypes = fType->get_args();
+        auto& paramDecls = fSym->declaration->args;
+        for (size_t i = 0; i < paramTypes.size(); ++i) {
+            auto pType = paramTypes[i];
+            auto pName = paramDecls[i]->init_declarator->declarator->name;
+            auto vsym = std::make_shared<VarSymbol>(pType, argVals[i]);
+            symbolTable->push_symbol(pName, vsym);
+        }
+
+        // Выполняем тело функции
+        node.base->accept(*this); // optional no-op
+        fSym->declaration->body->accept(*this);
+        // После выполнения body, результат должен быть в current_value (через ReturnStatement)
+        std::any returnAny;
+        if (returnFlag) {
+            returnAny = returnValue;
+            returnFlag = false;
+        } else {
+            returnAny = std::any{}; // void
+        }
+
+        // Составляем результирующий VarSymbol
+        std::shared_ptr<Type> retType = fType->get_returnable_type();
+        current_value = std::make_shared<VarSymbol>(retType, returnAny);
+
+        // Возвращаемся во внешний scope
+        symbolTable = saved;
+    } else {
+        // Выражение вида (expr)(args…) – вычисляем expr, приводим к FuncSymbol
+        node.base->accept(*this);
+        auto fSym = std::dynamic_pointer_cast<FuncSymbol>(current_value);
+        auto fType = std::dynamic_pointer_cast<FuncType>(fSym->type);
+
+        auto saved = symbolTable;
+        symbolTable = symbolTable->create_new_table(saved);
+        auto& paramTypes = fType->get_args();
+        auto& paramDecls = fSym->declaration->args;
+        for (size_t i = 0; i < paramTypes.size(); ++i) {
+            auto pType = paramTypes[i];
+            auto pName = paramDecls[i]->init_declarator->declarator->name;
+            auto vsym = std::make_shared<VarSymbol>(pType, argVals[i]);
+            symbolTable->push_symbol(pName, vsym);
+        }
+
+        fSym->declaration->body->accept(*this);
+        std::any returnAny;
+        if (returnFlag) {
+            returnAny = returnValue;
+            returnFlag = false;
+        } else {
+            returnAny = std::any{};
+        }
+        std::shared_ptr<Type> retType = fType->get_returnable_type();
+        current_value = std::make_shared<VarSymbol>(retType, returnAny);
+        symbolTable = saved;
+    }
+}
+
+void Execute::visit(SubscriptExpression& node) {
+    // Вычисляем выражение массива
+    node.base->accept(*this);
+    auto arrSym = std::dynamic_pointer_cast<VarSymbol>(current_value);
+    auto arrVal = arrSym->value; // ожидаем std::vector<std::any>
+
+    // Индекс
+    node.index->accept(*this);
+    int idx = std::any_cast<int>( std::dynamic_pointer_cast<VarSymbol>(current_value)->value );
+
+    auto vec = std::any_cast<std::vector<std::any>>(arrVal);
+    std::any elemVal = vec[idx];
+
+    // Тип элемента – базовый тип массива (arrSym->type это ArrayType)
+    auto arrType = std::dynamic_pointer_cast<ArrayType>(arrSym->type);
+    auto elemType = arrType->get_base_type();
+    current_value = std::make_shared<VarSymbol>(elemType, elemVal);
+}
+
+void Execute::visit(IntLiteral& node) {
+    current_value = std::make_shared<VarSymbol>(std::make_shared<IntegerType>(), node.value);
+}
+
+void Execute::visit(FloatLiteral& node) {
+    current_value = std::make_shared<VarSymbol>(std::make_shared<FloatType>(), node.value);
+}
+
+void Execute::visit(CharLiteral& node) {
+    current_value = std::make_shared<VarSymbol>(std::make_shared<CharType>(), node.value);
+}
+
+void Execute::visit(StringLiteral& node) {
+    current_value = std::make_shared<VarSymbol>(std::make_shared<StringType>(), node.value);
+}
+
+void Execute::visit(BoolLiteral& node) {
+    current_value = std::make_shared<VarSymbol>(std::make_shared<BoolType>(), node.value);
+}
+
+void Execute::visit(IdentifierExpression& node) {
+    current_value = symbolTable->match_global(node.name);
+}
+
+void Execute::visit(ParenthesizedExpression& node) {
+    node.expression->accept(*this);
+}
+
+void Execute::visit(TernaryExpression& node) {
+    node.condition->accept(*this);
+    auto cv = std::dynamic_pointer_cast<VarSymbol>(current_value)->value;
+    bool cond = (cv.type() == typeid(bool) ? std::any_cast<bool>(cv) : std::any_cast<int>(cv) != 0);
+    if (cond) {
+        node.true_expr->accept(*this);
+    } else {
+        node.false_expr->accept(*this);
+    }
+}
+
+void Execute::visit(SizeOfExpression& node) {
+    if (node.is_type) {
+        // Для упрощения: возвращаем sizeof(void*)
+        int sz = sizeof(void*);
+        current_value = std::make_shared<VarSymbol>(std::make_shared<IntegerType>(), sz);
+    } else {
+        node.expression->accept(*this);
+        int sz = sizeof(void*);
+        current_value = std::make_shared<VarSymbol>(std::make_shared<IntegerType>(), sz);
+    }
+}
+
+void Execute::visit(NameSpaceAcceptExpression& node) {
+    // node.base – идентификатор namespace
+    if (auto nsId = dynamic_cast<IdentifierExpression*>(node.base.get())) {
+        auto nsSym = std::dynamic_pointer_cast<NamespaceSymbol>(
+            symbolTable->match_global(nsId->name)
+        );
+        auto saved = symbolTable;
+        symbolTable = nsSym->scope;  // входим в scope namespace
+        auto member = symbolTable->match_global(node.name);
+        current_value = member;
+        symbolTable = saved; // выходим обратно
+    }
+}

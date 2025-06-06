@@ -92,6 +92,10 @@ void BoolLiteral::accept(Visitor& visitor) {
 	visitor.visit(*this);
 }
 
+void NullPtrLiteral::accept(Visitor& visitor) {
+	visitor.visit(*this);
+}
+
 ParenthesizedExpression::ParenthesizedExpression(
 	std::shared_ptr<Expression> expression
 	) : expression(expression) {}

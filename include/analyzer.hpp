@@ -70,6 +70,7 @@ public:
 	void visit(CharLiteral&) override;
 	void visit(StringLiteral&) override;
 	void visit(BoolLiteral&) override;
+	void visit(NullPtrLiteral&) override;
 	void visit(IdentifierExpression&) override;
 	void visit(ParenthesizedExpression&) override;
 	void visit(TernaryExpression&) override;
@@ -81,8 +82,14 @@ public:
 	std::shared_ptr<Scope> scope;
     std::shared_ptr<Type> current_type;
 	std::vector<std::shared_ptr<Type>> return_type_stack;
-	bool evaluateConstant(ASTNode*);
 
+	bool is_deducing_return = false;
+    std::shared_ptr<Type> deduced_return_type = nullptr;
+
+	
+	bool evaluateConstant(ASTNode*);
+	std::shared_ptr<Scope> getScope() const { return scope; }
+		
 	enum class BinaryOp{
 		Add, Subtract, Multiply, Divide, Less, Greater, Equal
 	};

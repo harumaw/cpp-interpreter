@@ -117,12 +117,18 @@ struct BoolLiteral: public LiteralExpression {
 	void accept(Visitor&) override;
 };
 
+struct NullPtrLiteral: public LiteralExpression{
+	
+	void accept(Visitor&) override;
+};
+
 struct ParenthesizedExpression: public PrimaryExpression {
 	std::shared_ptr<Expression> expression;
 
 	ParenthesizedExpression(std::shared_ptr<Expression>);
 	void accept(Visitor&) override;
 };
+
 
 struct StructMemberAccessExpression : public PostfixExpression {
 	std::shared_ptr<Expression> base;

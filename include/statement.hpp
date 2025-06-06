@@ -23,7 +23,7 @@ struct ConditionalStatement : public Statement {
         const std::shared_ptr<Statement>& else_branch
     );
     std::pair<std::shared_ptr<Expression>, std::shared_ptr<Statement>> if_branch;
-    std::shared_ptr<Statement> else_branch;
+    std::shared_ptr<Statement> else_branch; 
 
     void accept(Visitor& visitor) override; 
 };

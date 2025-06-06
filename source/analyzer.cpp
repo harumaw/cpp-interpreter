@@ -1,6 +1,7 @@
 #include "analyzer.hpp"
 #include "token.hpp"
 #include "semantic_exception.hpp"
+#include "type.hpp"
 
 int getTypeRank(const Type& type) {
     if (dynamic_cast<const FloatType*>(&type))    return  3;
@@ -28,6 +29,56 @@ std::shared_ptr<Type> compareRank(const std::shared_ptr<Type>& lhs, const std::s
     }
 }
 
+
+bool canConvert(const std::shared_ptr<Type>& from,
+                const std::shared_ptr<Type>& to) {
+    auto strip = [&](std::shared_ptr<Type> t){
+        if (auto cp = dynamic_cast<ConstType*>(t.get()))
+            return cp->get_base();
+        return t;
+    };
+    auto f = strip(from);
+    auto tt = strip(to);
+
+    // 0) Array → Pointer
+    if (auto arr = dynamic_cast<ArrayType*>(f.get())) {
+        if (auto pt = dynamic_cast<PointerType*>(tt.get())) {
+            if (arr->get_base_type()->equals(pt->get_base())) {
+                return true;
+            }
+        }
+    }
+
+    // 1) Равенство типов
+    if (f->equals(tt)) return true;
+
+    // 2) Арифметика → арифметика
+    if (dynamic_cast<Arithmetic*>(f.get()) &&
+        dynamic_cast<Arithmetic*>(tt.get()))
+        return true;
+
+    // 3) nullptr → любой указатель
+    if (dynamic_cast<NullPtrType*>(f.get()) &&
+        dynamic_cast<PointerType*>(tt.get()))
+        return true;
+
+    // 4) T* → T*
+    if (auto pf = dynamic_cast<PointerType*>(f.get())) {
+        if (auto pt = dynamic_cast<PointerType*>(tt.get())) {
+            auto bf = pf->get_base();
+            auto bt = pt->get_base();
+            if (bf->equals(bt)
+             || dynamic_cast<VoidType*>(bf.get())
+             || dynamic_cast<VoidType*>(bt.get())) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+
 std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types = {
     {"int",    std::make_shared<IntegerType>()},
     {"float",  std::make_shared<FloatType>()},
@@ -37,12 +88,12 @@ std::unordered_map<std::string, std::shared_ptr<Type>> Analyzer::default_types =
 };
 
 Analyzer::Analyzer()
-  : scope(std::make_shared<Scope>(nullptr, nullptr))
+  : scope(std::make_shared<Scope>(nullptr))
   , current_type(nullptr)
 {}
 
 void Analyzer::analyze(TranslationUnit& unit) {
-    scope = std::make_shared<Scope>(nullptr, nullptr);
+    scope = std::make_shared<Scope>(nullptr);
     errors.clear();
 
     for (auto& node : unit.get_nodes()) {
@@ -75,10 +126,10 @@ void Analyzer::visit(Declaration::SimpleDeclarator& node) {
 
 void Analyzer::visit(Declaration::PtrDeclarator& node) {
     VISIT_BODY_BEGIN
+    node.inner->accept(*this);
     current_type = std::make_shared<PointerType>(current_type);
     VISIT_BODY_END
 }
-
 void Analyzer::visit(Declaration::InitDeclarator& node) {
     VISIT_BODY_BEGIN
     node.declarator->accept(*this);
@@ -87,93 +138,216 @@ void Analyzer::visit(Declaration::InitDeclarator& node) {
     VISIT_BODY_END
 }
 
+
 void Analyzer::visit(VarDeclaration& node) {
     VISIT_BODY_BEGIN
 
-    auto declared = get_type(node.type);
+    std::shared_ptr<Type> base_t;
+    bool deduce_auto = false;
 
-    if(node.is_const){
-        declared = std::make_shared<ConstType>(declared);
+    // 1) Если «auto», то находим базовый тип из единственного initializer
+    if (node.type == "auto") {
+        deduce_auto = true;
+
+        // 1.1) Требуем ровно один declarator с initializer
+        if (node.declarator_list.empty()) {
+            throw SemanticException("auto-declaration requires at least one declarator");
+        }
+        if (node.declarator_list.size() != 1 ||
+            !node.declarator_list.front()->initializer) 
+        {
+            throw SemanticException("auto-declaration must have exactly one initializer");
+        }
+
+        // vitaskivaem type
+        current_type = nullptr;
+        node.declarator_list.front()->initializer->accept(*this);
+        if (!current_type) {
+            throw SemanticException("cannot deduce type for auto");
+        }
+
+        // 1.3) Если это был ConstType, убираем верхний const
+        if (auto cp = dynamic_cast<ConstType*>(current_type.get())) {
+            base_t = cp->get_base();
+        } else {
+            base_t = current_type;
+        }
     }
+    // 2) Иначе тип указан явно (int, float, char, bool, имя struct и т. д.)
+    else {
+        base_t = get_type(node.type);
+        if (node.is_const) {
+            base_t = std::make_shared<ConstType>(base_t);
+        }
+    }
+
+    // 3) Перебираем каждый InitDeclarator из списка
     for (auto& decl : node.declarator_list) {
-        current_type = declared;
-        decl->declarator->accept(*this);
-        const auto& name = decl->declarator->name;
-        if (scope->has_variable_current(name))
+        const std::string& name = decl->declarator->name;
+
+        // 3.1) Проверяем, нет ли уже такого имени в scope
+        if (scope->contains_symbol(name)) {
             throw SemanticException("variable already declared: " + name);
-        scope->push_variable(name, current_type);
-        if (decl->initializer)
-            decl->initializer->accept(*this);
+        }
+
+        // 3.2) Собираем полный тип переменной (с учётом всех «*»)
+        std::shared_ptr<Type> var_type;
+        if (!deduce_auto) {
+           
+            current_type = base_t;
+            //         теперь «заходим» в node.declarator, 
+            //         который может содержать несколько PtrDeclaratoов подряд
+            //         каждый PtrDeclarator-invoke делает current_type = PointerType(current_type).
+            decl->declarator->accept(*this);
+            //         В current_type сейчас именно тот тип, который напиши в объявлении:
+            //          если было «int x;» → var_type == int
+            //          если «int *x;» → var_type == int*
+            //          если «int **x;» → var_type == int**
+            var_type = current_type;
+        }
+        else {
+            var_type = base_t;
+        }
+
+
+        scope->push_symbol(name, std::make_shared<VarSymbol>(var_type));
+
+
+        if (decl->initializer) {
+            // 3.4.1) Для не-auto: надо ещё раз вычислить тип RHS,
+            //         потому что current_type уже «занулился» внутри сборки var_type
+            if (!deduce_auto) {
+                decl->initializer->accept(*this);
+            }
+            // Сейчас current_type = тип RHS
+            if (!canConvert(current_type, var_type)) {
+                throw SemanticException(
+                    "cannot initialize variable '" + name + "' with given type"
+                );
+            }
+        }
     }
+
     VISIT_BODY_END
 }
+
+
 
 void Analyzer::visit(ParameterDeclaration& node) {
     VISIT_BODY_BEGIN
-    auto declared = get_type(node.type);
-    current_type = declared;
-    node.init_declarator->declarator->accept(*this);
+    auto base_t = get_type(node.type);
     const auto& name = node.init_declarator->declarator->name;
-    if (scope->has_variable_current(name))
+    if (scope->contains_symbol(name)) {
         throw SemanticException("parameter already declared: " + name);
-    scope->push_variable(name, current_type);
-    if (node.init_declarator->initializer)
+    }
+    scope->push_symbol(name, std::make_shared<VarSymbol>(base_t));
+
+    if (node.init_declarator->initializer) {
         node.init_declarator->initializer->accept(*this);
+        if (!canConvert(current_type, base_t)) {
+            throw SemanticException("cannot initialize parameter '" + name + "' with given type");
+        }
+    }
     VISIT_BODY_END
 }
+
 
 void Analyzer::visit(FuncDeclaration& node) {
     VISIT_BODY_BEGIN
 
-    // определяем возвращаемый тип функции
+    std::shared_ptr<Type> ret_t;
 
-   auto return_t = get_type(node.type);
-   // если лидирующий const, оборачиваем в ConstType
-   if (node.is_const) {
-       return_t = std::make_shared<ConstType>(return_t); // ← добавлено
-   }
+    if (node.type == "auto") {
 
-    // собираем типы параметров
-    std::vector<std::shared_ptr<Type>> arg_types;
-    for (auto& param : node.args) {
-        current_type = get_type(param->type);
-        param->init_declarator->declarator->accept(*this);
-        arg_types.push_back(current_type);
+        auto saved_scope = scope;
+        bool saved_flag = is_deducing_return;
+        auto saved_deduced = deduced_return_type;
+
+        is_deducing_return = true;
+        deduced_return_type = nullptr;
+
+       
+        scope = scope->create_new_table(saved_scope);
+
+        // регистрируем параметры, чтобы их можно было использовать в return-выражениях
+        std::vector<std::shared_ptr<Type>> arg_ts_for_deduce;
+        for (auto& p : node.args) {
+            auto pt = get_type(p->type);
+            arg_ts_for_deduce.push_back(pt);
+        }
+        for (size_t i = 0; i < node.args.size(); ++i) {
+            const auto& pname = node.args[i]->init_declarator->declarator->name;
+            scope->push_symbol(pname, std::make_shared<VarSymbol>(arg_ts_for_deduce[i]));
+        }
+
+        
+        node.body->accept(*this);
+
+
+        if (!deduced_return_type) {
+            ret_t = Analyzer::default_types.at("void");
+        } else {
+            ret_t = deduced_return_type;
+        }
+
+        
+        scope = saved_scope;
+        is_deducing_return = saved_flag;
+        deduced_return_type = saved_deduced;
+        
+    }
+    else {
+        
+        ret_t = get_type(node.type);
+        if (node.is_const) {
+            ret_t = std::make_shared<ConstType>(ret_t);
+        }
     }
 
-    // проверяем, не объявлена ли функция с такой сигнатурой в этом скоупе
-    if (scope->has_function(node.declarator->name, arg_types)) {
-        throw SemanticException("function already declared: " + node.declarator->name);
+    // Регистрируем функцию в текущем скоупе (с уже известным ret_t)
+    std::vector<std::shared_ptr<Type>> arg_ts;
+    for (auto& p : node.args) {
+        arg_ts.push_back(get_type(p->type));
     }
 
-   // передаём флаг трейлинг-const (node.is_readonly)
-   auto func_t = std::make_shared<FuncType>(return_t, arg_types, node.is_readonly);
+    const auto& fname = node.declarator->name;
+    if (scope->contains_symbol(fname)) {
+        throw SemanticException("function already declared: " + fname);
+    }
 
-    scope->push_func(node.declarator->name, func_t);
+    auto signature = std::make_shared<FuncType>(ret_t, arg_ts, node.is_readonly);
+    auto funcSym   = std::make_shared<FuncSymbol>(signature, arg_ts, node.is_readonly);
+    funcSym->declaration = &node;
+    scope->push_symbol(fname, funcSym);
 
-    // сохраняем ожидаемый возвращаемый тип в стек
-    return_type_stack.push_back(return_t);
+    // ======== Второй проход: валидация тела с известным ret_t ========
+    return_type_stack.push_back(ret_t);
+    auto saved_scope2 = scope;
+    scope = scope->create_new_table(saved_scope2);
 
-    // переходим в новый вложенный скоуп для тела функции
-    scope = scope->create_new_table(scope, node.body);
-
-    // регистрируем параметры как локальные переменные
+    // Регистрируем параметры как локальные переменные
     for (size_t i = 0; i < node.args.size(); ++i) {
         const auto& pname = node.args[i]->init_declarator->declarator->name;
-        if (scope->has_variable(pname)) {
-            throw SemanticException("parameter already declared: " + pname);
+        scope->push_symbol(pname, std::make_shared<VarSymbol>(arg_ts[i]));
+
+        // Если у параметра есть initializer, проверяем canConvert
+        if (node.args[i]->init_declarator->initializer) {
+            node.args[i]->init_declarator->initializer->accept(*this);
+            if (!canConvert(current_type, arg_ts[i])) {
+                throw SemanticException(
+                    "cannot initialize parameter '" + pname + "' with given type"
+                );
+            }
         }
-        scope->push_variable(pname, arg_types[i]);
     }
 
+  
     node.body->accept(*this);
 
-    // выходим из скоупа и восстанавливаем предыдущий ожидаемый тип
-    scope = scope->get_prev_table();
+
+    scope = saved_scope2;
     return_type_stack.pop_back();
 
-    // устанавливаем current_type на тип функции (для вложенных вызовов)
-    current_type = func_t;
 
     VISIT_BODY_END
 }
@@ -183,83 +357,87 @@ void Analyzer::visit(FuncDeclaration& node) {
 void Analyzer::visit(StructDeclaration& node) {
     VISIT_BODY_BEGIN
 
-    // redeclaration-check: только текущий скоуп
-    if (scope->has_struct_current(node.name)) {
+  
+    if (scope->contains_symbol(node.name)) {
         throw SemanticException("struct already declared: " + node.name);
     }
 
-    if (node.members.empty()) {
-        throw SemanticException("struct must have at least one member: " + node.name);
-    }
-
-    // соберём отдельно поля и методы
-    std::unordered_map<std::string, std::shared_ptr<Type>> data_members;
+    // 2) Две карты: data_members для типов полей, methods для типов методов,
+    //    и одна карта member_symbols для самих VarSymbol/FuncSymbol
+    std::unordered_map<std::string, std::shared_ptr<Type>>    data_members;
     std::unordered_map<std::string, std::shared_ptr<FuncType>> methods;
+    std::unordered_map<std::string, std::shared_ptr<Symbol>>   member_symbols;
 
     for (auto& m : node.members) {
         if (auto fld = dynamic_cast<VarDeclaration*>(m.get())) {
-            // -- поле --
+            // 3.1. Проанализировать поле, чтобы current_type = его тип
             fld->accept(*this);
-            const auto& fname = fld->declarator_list[0]->declarator->name;
-            if (data_members.count(fname)) {
-                throw SemanticException("duplicate struct member: " + fname
-                                        + " in struct " + node.name);
+            const auto& fieldName = fld->declarator_list[0]->declarator->name;
+
+            if (data_members.count(fieldName)) {
+                throw SemanticException(
+                    "duplicate struct member: " + fieldName + " in struct " + node.name
+                );
             }
-            data_members[fname] = current_type;
 
-        } else if (auto mtd = dynamic_cast<FuncDeclaration*>(m.get())) {
-            // -- метод --
-            // 1) определяем возвращаемый тип, снимая лидирующий const если есть
+            // 3.3. Сохраняем тип этого поля
+            data_members[fieldName] = current_type;
+
+
+            auto varSym = std::make_shared<VarSymbol>(current_type);
+            member_symbols[fieldName] = varSym;
+        }
+
+
+        else if (auto mtd = dynamic_cast<FuncDeclaration*>(m.get())) {
             auto m_ret = get_type(mtd->type);
-            if (mtd->is_const)
+            if (mtd->is_const) {
                 m_ret = std::make_shared<ConstType>(m_ret);
+            }
 
-            // 2) собираем типы аргументов
+
             std::vector<std::shared_ptr<Type>> m_args;
             for (auto& p : mtd->args) {
-                auto at = get_type(p->type);
-                // принимаем в current_type
-                p->init_declarator->declarator->accept(*this);
-                m_args.push_back(current_type);
+                m_args.push_back(get_type(p->type));
             }
 
-            // 3) создаём FuncType с флагом метода-const
             auto m_ft = std::make_shared<FuncType>(m_ret, m_args, mtd->is_readonly);
-            const auto& mname = mtd->declarator->name;
-            if (methods.count(mname)) {
-                throw SemanticException("duplicate struct method: " + mname
-                                        + " in struct " + node.name);
-            }
-            methods[mname] = m_ft;
 
-            // ----- далее проверяем тело метода -----
-            // ожидаемый тип возвращаемого значения
-            return_type_stack.push_back(m_ret);
-            // новый вложенный скоуп для метода
-            auto saved_scope = scope;
-            scope = scope->create_new_table(scope, mtd->body);
-            // регистрируем параметры как локальные переменные
-            for (size_t i = 0; i < mtd->args.size(); ++i) {
-                const auto& pname = mtd->args[i]->init_declarator->declarator->name;
-                scope->push_variable(pname, m_args[i]);
-            }
-            // анализ тела
-            mtd->body->accept(*this);
-            // восстанавливаем
-            scope = saved_scope;
-            return_type_stack.pop_back();
+            const auto& methodName = mtd->declarator->name;
+           
 
-        } else {
-            throw SemanticException("invalid struct member declaration in struct "
-                                    + node.name);
+            if (methods.count(methodName)) {
+                throw SemanticException(
+                    "duplicate struct method: " + methodName + " in struct " + node.name
+                );
+            }
+            methods[methodName] = m_ft;
+
+        
+            auto fsym = std::make_shared<FuncSymbol>(
+                m_ft,
+                m_ft->get_args(),
+                mtd->is_readonly
+            );
+            fsym->declaration = mtd; 
+            member_symbols[methodName] = fsym;
+        }
+        else {
+            throw SemanticException(
+                "invalid struct member declaration in struct " + node.name
+            );
         }
     }
 
-    // создаём сам StructType и помещаем в scope
-    auto st = std::make_shared<StructType>(std::move(data_members),
-                                           std::move(methods));
-    scope->push_struct(node.name, st);
-    current_type = st;
+    
+    auto struct_type = std::make_shared<StructType>(data_members, methods);
+
+  
+    auto structSym = std::make_shared<StructSymbol>(
+        struct_type,
+        std::move(member_symbols)
+    );
+    scope->push_symbol(node.name, structSym);
 
     VISIT_BODY_END
 }
@@ -267,40 +445,49 @@ void Analyzer::visit(StructDeclaration& node) {
 
 void Analyzer::visit(ArrayDeclaration& node) {
     VISIT_BODY_BEGIN
+
     node.size->accept(*this);
-    if (!dynamic_cast<Integral*>(current_type.get()))
+    if (!dynamic_cast<Integral*>(current_type.get())) {
         throw SemanticException("array size must be integer");
+    }
+
     auto base_t = get_type(node.type);
-    auto arr_t = std::make_shared<ArrayType>(base_t, node.size);
-    if (scope->has_variable(node.name))
-        throw SemanticException("variable already declared: " + node.name);
-    scope->push_variable(node.name, arr_t);
+    auto arr_t  = std::make_shared<ArrayType>(base_t, node.size);
+
+    scope->push_symbol(node.name, std::make_shared<VarSymbol>(arr_t));
+
     current_type = arr_t;
+
     VISIT_BODY_END
 }
 
+
 void Analyzer::visit(CompoundStatement& node) {
     VISIT_BODY_BEGIN
-    scope = scope->create_new_table(scope, std::make_shared<CompoundStatement>(node));
-    for (auto& s : node.statements)
-        s->accept(*this);
-    scope = scope->get_prev_table();
+
+    auto saved = scope;
+    scope = scope->create_new_table(saved);
+
+    for (auto& stmt : node.statements) {
+        stmt->accept(*this);
+    }
+
+    scope = saved;
+
     VISIT_BODY_END
 }
 
 void Analyzer::visit(NameSpaceDeclaration& node) {
     VISIT_BODY_BEGIN
 
-    if (scope->has_namespace(node.name))
-        throw SemanticException("namespace already declared: " + node.name);
-
-    auto ns_scope = scope->create_new_table(scope, nullptr);
-    scope->push_namespace(node.name, ns_scope);
-
     auto saved = scope;
-    scope = ns_scope;
-    for (auto& decl : node.declarations)
+    scope = scope->create_new_table(saved);
+
+    
+    for (auto& decl : node.declarations) {
         decl->accept(*this);
+    }
+
     scope = saved;
 
     VISIT_BODY_END
@@ -364,43 +551,74 @@ void Analyzer::visit(ForStatement& node) {
 void Analyzer::visit(ReturnStatement& node) {
     VISIT_BODY_BEGIN
 
+
+    // если мы в режиме дедукции, просто собираем типы и строго проверяем совпадение
+    if (is_deducing_return) {
+        if (node.expression) {
+            node.expression->accept(*this);
+            // Убираем const-обёртку, если есть
+            std::shared_ptr<Type> expr_base = current_type;
+            if (auto cp = dynamic_cast<ConstType*>(current_type.get())) {
+                expr_base = cp->get_base();
+            }
+
+            if (!deduced_return_type) {
+                // Первый return — запомним его тип
+                deduced_return_type = expr_base;
+            } else {
+                // Последующие return должны строго совпадать с уже запомненным
+                if (!deduced_return_type->equals(expr_base)) {
+                    throw SemanticException(
+                        "deduced return type  conflicts with type in auto-function"
+                    );
+                }
+            }
+        } else {
+            auto voidType = Analyzer::default_types.at("void");
+            if (!deduced_return_type) {
+                deduced_return_type = voidType;
+            } else {
+                if (!dynamic_cast<VoidType*>(deduced_return_type.get())) {
+                    throw SemanticException(
+                        "deduced return type conflicts with void in auto-function"
+                    );
+                }
+            }
+        }
+        return;
+    }
+
+    // обычная валидация 
     if (return_type_stack.empty())
         throw SemanticException("return outside of function");
 
-    // забираем заявленный для функции тип
+    // ожидаемый тип — верхушка стека
     auto declared = return_type_stack.back();
-
-    // снимаем верхний const, если он есть
     std::shared_ptr<Type> declared_base = declared;
-    if (auto cp = dynamic_cast<ConstType*>(declared.get()))
+    if (auto cp = dynamic_cast<ConstType*>(declared.get())) {
         declared_base = cp->get_base();
+    }
 
     if (node.expression) {
-        // анализируем само выражение
         node.expression->accept(*this);
         auto expr_t = current_type;
-
-        // снимаем const-обёртку с выражения
         std::shared_ptr<Type> expr_base = expr_t;
-        if (auto cp = dynamic_cast<ConstType*>(expr_t.get()))
+        if (auto cp = dynamic_cast<ConstType*>(expr_t.get())) {
             expr_base = cp->get_base();
-
-        // проверяем, можно ли нестрого вернуть expr_base в declared_base
-        bool ok_same    = expr_base->equals(declared_base);
-        bool ok_numeric = dynamic_cast<Arithmetic*>(expr_base.get())
-                       && dynamic_cast<Arithmetic*>(declared_base.get());
-
-        if (!ok_same && !ok_numeric) {
-               throw SemanticException("return type mismatch");
         }
 
-        // приводим текущий тип к типу функции
+        // строгое равенство типов
+        if (!expr_base->equals(declared_base)) {
+            throw SemanticException(
+                "return type mismatch: cannot convert "
+            );
+        }
         current_type = declared_base;
-
     } else {
-        // void-функция не должна возвращать значение
-        if (!dynamic_cast<VoidType*>(declared_base.get()))
+        // «return;» без expr -> только в void-функции
+        if (!dynamic_cast<VoidType*>(declared_base.get())) {
             throw SemanticException("non-void function must return a value");
+        }
         current_type = declared_base;
     }
 
@@ -408,12 +626,12 @@ void Analyzer::visit(ReturnStatement& node) {
 }
 
 
+
 void Analyzer::visit(BreakStatement& /*node*/) {}
 void Analyzer::visit(ContinueStatement& /*node*/) {}
 void Analyzer::visit(BinaryOperation& node) {
     VISIT_BODY_BEGIN
 
-    
     if (node.op == "=") {
         node.lhs->accept(*this);
         auto lhs_t = current_type;
@@ -422,62 +640,144 @@ void Analyzer::visit(BinaryOperation& node) {
         }
         node.rhs->accept(*this);
         auto rhs_t = current_type;
+
         if (!rhs_t->equals(lhs_t) &&
             !(dynamic_cast<Arithmetic*>(rhs_t.get()) &&
-              dynamic_cast<Arithmetic*>(lhs_t.get()))) {
+              dynamic_cast<Arithmetic*>(lhs_t.get())) &&
+            !(dynamic_cast<NullPtrType*>(rhs_t.get()) &&
+              dynamic_cast<PointerType*>(lhs_t.get()))) 
+        {
             throw SemanticException("type mismatch in assignment");
         }
         current_type = lhs_t;
-
-    
+        return;
     }
-    if (node.op == "<"  || node.op == ">"  ||
-        node.op == "<=" || node.op == ">=" ||
-        node.op == "==" || node.op == "!=") {
-        node.lhs->accept(*this);
-        auto left = current_type;
-        node.rhs->accept(*this);
-        auto right = current_type;
 
-        // оба операнда должны быть арифметическими
-        if (!dynamic_cast<Arithmetic*>(left.get()) ||
-            !dynamic_cast<Arithmetic*>(right.get())) {
-            throw SemanticException("binary comparison requires arithmetic types");
+
+    node.lhs->accept(*this);
+    auto leftType  = current_type;
+    node.rhs->accept(*this);
+    auto rightType = current_type;
+
+
+    std::shared_ptr<Type> realLeft  = leftType;
+    std::shared_ptr<Type> realRight = rightType;
+
+    if (auto arrL = dynamic_cast<ArrayType*>(leftType.get())) {
+        realLeft = std::make_shared<PointerType>(arrL->get_base_type());
+    }
+    if (auto arrR = dynamic_cast<ArrayType*>(rightType.get())) {
+        realRight = std::make_shared<PointerType>(arrR->get_base_type());
+    }
+
+    //  указательная арифметика: T* + int, T* - int, T* - T*
+    if ((node.op == "+" || node.op == "-") &&
+         dynamic_cast<PointerType*>(realLeft.get()))
+    {
+        auto ptrL = std::dynamic_pointer_cast<PointerType>(realLeft);
+        auto baseL = ptrL->get_base();
+
+        //  «T* + int» или «T* - int» -> результат того же T*
+        if (dynamic_cast<IntegerType*>(realRight.get())) {
+            current_type = realLeft;
+            return;
         }
-        // результат сравнения всегда bool
+
+        // 3.2) «T* - T*» -> целое (ptrdiff), только для одинаковых базовых T*
+        if (node.op == "-" &&
+            dynamic_cast<PointerType*>(realRight.get()))
+        {
+            auto ptrR = std::dynamic_pointer_cast<PointerType>(realRight);
+            if (!ptrR->get_base()->equals(baseL)) {
+                throw SemanticException("pointer subtraction with mismatched base types");
+            }
+            current_type = Analyzer::default_types.at("int");
+            return;
+        }
+    }
+
+    // обычные сравнения (<, >, <=, >=, ==, !=) - для чисел и указателей
+    if (node.op == "<" || node.op == ">" ||
+        node.op == "<=" || node.op == ">=" ||
+        node.op == "==" || node.op == "!=")
+    {
+        bool ok_arith = dynamic_cast<Arithmetic*>(leftType.get()) &&
+                        dynamic_cast<Arithmetic*>(rightType.get());
+        bool ok_ptr   = dynamic_cast<PointerType*>(realLeft.get()) &&
+                        dynamic_cast<PointerType*>(realRight.get());
+        bool ok_nullL = dynamic_cast<NullPtrType*>(leftType.get()) &&
+                        dynamic_cast<PointerType*>(realRight.get());
+        bool ok_nullR = dynamic_cast<PointerType*>(realLeft.get()) &&
+                        dynamic_cast<NullPtrType*>(rightType.get());
+
+        if (ok_arith || ok_ptr || ok_nullL || ok_nullR) {
+            current_type = Analyzer::default_types.at("bool");
+            return;
+        }
+        throw SemanticException("binary comparison requires arithmetic or pointer types");
+    }
+
+    // логические «&&» и «||» - только bool
+    if (node.op == "&&" || node.op == "||") {
+        if (!dynamic_cast<BoolType*>(leftType.get()) ||
+            !dynamic_cast<BoolType*>(rightType.get()))
+        {
+            throw SemanticException("logical &&/|| require boolean operands");
+        }
         current_type = Analyzer::default_types.at("bool");
         return;
     }
 
-    
-
-    node.lhs->accept(*this);
-    auto left = current_type;
-    node.rhs->accept(*this);
-    auto right = current_type;
-
-    if (!dynamic_cast<Arithmetic*>(left.get()) ||
-        !dynamic_cast<Arithmetic*>(right.get())) {
-        throw SemanticException("binary operation requires arithmetic types");
+    // обычные арифметические +, -, *, / для чисел
+    if (node.op == "+" || node.op == "-" ||
+        node.op == "*" || node.op == "/")
+    {
+        if (!dynamic_cast<Arithmetic*>(leftType.get()) ||
+            !dynamic_cast<Arithmetic*>(rightType.get()))
+        {
+            throw SemanticException("binary arithmetic operation requires arithmetic types");
+        }
+        int rl = getTypeRank(*leftType);
+        int rr = getTypeRank(*rightType);
+        if (rl < 0 || rr < 0) {
+            throw SemanticException("type mismatch in binary operation");
+        }
+        current_type = compareRank(leftType, rightType);
+        return;
     }
 
-    int rl = getTypeRank(*left);
-    int rr = getTypeRank(*right);
-    if (rl < 0 || rr < 0) {
-        throw SemanticException("type mismatch in binary operation");
-    }
-
-    current_type = compareRank(left, right);
+    throw SemanticException("unsupported binary operator: " + node.op);
 
     VISIT_BODY_END
 }
 
-
 void Analyzer::visit(PrefixExpression& node) {
     VISIT_BODY_BEGIN
+
+    // сначала вычисляем тип «внутреннего» узла
     node.base->accept(*this);
-    if (dynamic_cast<Arithmetic*>(current_type.get()) == nullptr)
+    auto base_t = current_type;
+
+    // оператор «&» просто делаем указатель на base_t
+    if (node.op == "&") {
+        current_type = std::make_shared<PointerType>(base_t);
+        return;
+    }
+
+
+    if (node.op == "*") {
+        auto pType = dynamic_cast<PointerType*>(base_t.get());
+        if (!pType) {
+            throw SemanticException("cannot dereference non-pointer type");
+        }
+        current_type = pType->get_base();
+        return;
+    }
+
+
+    if (dynamic_cast<Arithmetic*>(base_t.get()) == nullptr) {
         throw SemanticException("invalid type for prefix operation");
+    }
     VISIT_BODY_END
 }
 
@@ -497,49 +797,144 @@ void Analyzer::visit(PostfixDecrementExpression& node) {
     VISIT_BODY_END
 }
 
-
 void Analyzer::visit(FunctionCallExpression& node) {
     VISIT_BODY_BEGIN
 
+    // собираем фактические типы аргументов
     std::vector<std::shared_ptr<Type>> arg_types;
-
     for (auto& arg : node.args) {
         arg->accept(*this);
-        // --- снятие константной обёртки: если аргумент ConstType, берем его базу
-        auto at = current_type;
-        if (auto cp = dynamic_cast<ConstType*>(at.get()))
-            at = cp->get_base();
-        arg_types.push_back(at);
+        auto t = current_type;
+        if (auto cp = dynamic_cast<ConstType*>(t.get()))
+            t = cp->get_base();
+        arg_types.push_back(t);
     }
 
     std::shared_ptr<FuncType> func_t;
-    if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
-        if (!scope->has_function(ident->name, arg_types))
+
+    //  вызов метода структуры: obj.method(...)
+    if (auto mexpr = dynamic_cast<StructMemberAccessExpression*>(node.base.get())) {
+        mexpr->accept(*this);
+        func_t = std::dynamic_pointer_cast<FuncType>(current_type);
+        if (!func_t)
+            throw SemanticException("expression is not a method");
+
+
+    //  простой свободный вызов: f(...)
+    } else if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
+         if (ident->name == "print") {
+            
+            auto voidType = std::make_shared<VoidType>();
+            current_type = voidType;
+
+            
+            bool already_registered = true;
+            try {
+                scope->match_global("print");
+            } catch (...) {
+                already_registered = false;
+            }
+
+            if (!already_registered) {
+                auto printType = std::make_shared<FuncType>(voidType, arg_types, /*readonly=*/false);
+                auto printSym = std::make_shared<FuncSymbol>(printType, arg_types, /*readonly=*/false);
+                printSym->declaration = nullptr; // у встроенной функции нет AST-тела
+                scope->push_symbol("print", printSym);
+            }
+
+
+            return;
+        
+        }
+
+        if (ident->name == "read") {
+            
+            if (arg_types.size() != 1) {
+                throw SemanticException("read() requires exactly one argument");
+            }
+            auto paramType = arg_types[0].get();
+            bool okType = false;
+            if (dynamic_cast<Arithmetic*>(paramType)) okType = true;
+            if (dynamic_cast<CharType*>(paramType))     okType = true;
+            if (dynamic_cast<BoolType*>(paramType))     okType = true;
+            if (dynamic_cast<StringType*>(paramType))   okType = true;
+            if (!okType) {
+                throw SemanticException(
+                    "read(): unsupported type—only int/float/char/bool/string are allowed"
+                );
+            }
+
+           
+            current_type = arg_types[0];
+
+            
+            bool already_registered = true;
+            try {
+                scope->match_global("read");
+            } catch (...) {
+                already_registered = false;
+            }
+
+            if (!already_registered) {
+                std::vector<std::shared_ptr<Type>> params = { arg_types[0] };
+                auto readType = std::make_shared<FuncType>( arg_types[0], params, /*readonly=*/false );
+                auto readSym  = std::make_shared<FuncSymbol>( readType, params, /*readonly=*/false );
+                readSym->declaration = nullptr;
+                scope->push_symbol("read", readSym);
+            }
+
+            return;
+        }
+
+        // перебираем все символы с таким именем
+        for (auto& sym : scope->match_range(ident->name)) {
+            auto fs = std::dynamic_pointer_cast<FuncSymbol>(sym);
+            if (!fs) continue;
+
+            // явно приводим к FuncType
+            auto ftype = std::dynamic_pointer_cast<FuncType>(fs->type);
+            if (!ftype) continue;
+
+            // проверяем параметры
+            const auto& params = ftype->get_args();
+            if (params.size() != arg_types.size()) 
+                continue;
+
+            bool match = true;
+            for (size_t i = 0; i < params.size(); ++i) {
+                if (!arg_types[i]->equals(params[i])) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                func_t = ftype;
+                break;
+            }
+        }
+        if (!func_t)
             throw SemanticException("undefined function or signature mismatch: " + ident->name);
-        func_t = scope->match_function(ident->name, arg_types);
+
+    //  вызов через выражение: (expr)(...)
     } else {
         node.base->accept(*this);
         func_t = std::dynamic_pointer_cast<FuncType>(current_type);
         if (!func_t)
             throw SemanticException("expression is not a function");
-        auto params = func_t->get_args();
+
+        const auto& params = func_t->get_args();
         if (params.size() != arg_types.size())
             throw SemanticException("argument count mismatch");
-        for (size_t i = 0; i < arg_types.size(); ++i) {
-            // тоже сравниваем без учёта константности
-            auto lhs = arg_types[i];
-            auto rhs = params[i];
-            if (auto cp = dynamic_cast<ConstType*>(lhs.get()))
-                lhs = cp->get_base();
-            if (!lhs->equals(rhs))
+        for (size_t i = 0; i < params.size(); ++i) {
+            if (!arg_types[i]->equals(params[i]))
                 throw SemanticException("argument type mismatch");
         }
     }
 
     current_type = func_t->get_returnable_type();
+
     VISIT_BODY_END
 }
-
 
 
 void Analyzer::visit(SubscriptExpression& node) {
@@ -557,14 +952,26 @@ void Analyzer::visit(SubscriptExpression& node) {
 
 void Analyzer::visit(IdentifierExpression& node) {
     VISIT_BODY_BEGIN
+
+    std::shared_ptr<Symbol> sym;
     try {
-        current_type = scope->match_variable(node.name);
-    } catch (...) {
+        
+        sym = scope->match_global(node.name);
+    } catch (const std::runtime_error&) {
         throw SemanticException("undefined variable: " + node.name);
     }
+
+
+    auto varSym = std::dynamic_pointer_cast<VarSymbol>(sym);
+    if (!varSym) {
+        throw SemanticException(node.name + " is not a variable");
+    }
+
+
+    current_type = varSym->type;
+
     VISIT_BODY_END
 }
-
 void Analyzer::visit(IntLiteral& node){   
     VISIT_BODY_BEGIN
     current_type = std::make_shared<IntegerType>(static_cast<int8_t>(node.value)); 
@@ -588,6 +995,12 @@ void Analyzer::visit(StringLiteral& node) {
 void Analyzer::visit(BoolLiteral& node) { 
     VISIT_BODY_BEGIN
     current_type = std::make_shared<BoolType>(node.value); 
+    VISIT_BODY_END
+}
+
+void Analyzer::visit(NullPtrLiteral& /*node*/) {
+    VISIT_BODY_BEGIN
+    current_type = std::make_shared<NullPtrType>();
     VISIT_BODY_END
 }
 
@@ -624,31 +1037,51 @@ void Analyzer::visit(TernaryExpression& node) {
 
 void Analyzer::visit(StructMemberAccessExpression& node) {
     VISIT_BODY_BEGIN
-    // сначала вычисляем тип базового выражения
+
+    // сначала получаем тип базового выражения
     node.base->accept(*this);
-    // проверяем, что это действительно StructType
-    auto struct_t = std::dynamic_pointer_cast<StructType>(current_type);
-  if (!struct_t) {
-         throw SemanticException("expression is not a struct");
-     }
-     auto members = struct_t->get_members();
-     auto it = members.find(node.member);
-     if (it != members.end()) {
-         // это поле
-         current_type = it->second;
-        return;
+
+    // распаковываем возможный const-обёртку
+    bool obj_const = false;
+    std::shared_ptr<Type> obj_t = current_type;
+    if (auto cp = dynamic_cast<ConstType*>(obj_t.get())) {
+        obj_const = true;
+        obj_t = cp->get_base();
     }
-    // а может быть метод?
-    const auto& methods = struct_t->get_methods();
-    auto mit = methods.find(node.member);
-    if (mit != methods.end()) {
-        current_type = mit->second;
+
+    // проверяем, что это действительно StructType
+    auto struct_t = std::dynamic_pointer_cast<StructType>(obj_t);
+    if (!struct_t) {
+        throw SemanticException("expression is not a struct");
+    }
+
+    // сначала пробуем поле
+    const auto& members = struct_t->get_members();
+    auto fit = members.find(node.member);
+    if (fit != members.end()) {
+        current_type = fit->second;
         return;
     }
 
-     throw SemanticException("struct does not have member: " + node.member);
-     VISIT_BODY_END
+    // затем пробуем метод
+    const auto& methods = struct_t->get_methods();
+    auto mit = methods.find(node.member);
+    if (mit != methods.end()) {
+        auto func_t = mit->second;
+        // если объект const, метод тоже должен быть const
+        if (obj_const && !func_t->is_method_const()) {
+            throw SemanticException(
+                "cannot call non-const method on const object");
+        }
+        current_type = func_t;
+        return;
+    }
+
+    throw SemanticException("struct does not have member: " + node.member);
+
+    VISIT_BODY_END
 }
+
 
 void Analyzer::visit(SizeOfExpression& node) {
     VISIT_BODY_BEGIN
@@ -662,14 +1095,23 @@ void Analyzer::visit(SizeOfExpression& node) {
 }
 
 std::shared_ptr<Type> Analyzer::get_type(const std::string& name) {
-    if (scope->has_struct(name)) {
-        return scope->match_struct(name);
+    std::shared_ptr<Symbol> sym;
+    try {
+        sym = scope->match_global(name);
+    } catch (const std::runtime_error&) {
+        //  если не нашли - пробуем встроенные типы
+        auto it = default_types.find(name);
+        if (it != default_types.end())
+            return it->second;
+        throw SemanticException("unknown type: " + name);
     }
-    auto it = default_types.find(name);
-    if (it != default_types.end()) {
-        return it->second;
+
+    // должен быть StructSymbol
+    if (auto structSym = std::dynamic_pointer_cast<StructSymbol>(sym)) {
+        return structSym->type;
     }
-    throw SemanticException("unknown type: " + name);
+
+    throw SemanticException("symbol '" + name + "' is not a struct type");
 }
 
 void Analyzer::visit(DoWhileStatement& node) {
@@ -684,21 +1126,55 @@ void Analyzer::visit(DoWhileStatement& node) {
 }
 
 
+
 void Analyzer::visit(NameSpaceAcceptExpression& node) {
     VISIT_BODY_BEGIN
-    auto ns_ident = dynamic_cast<IdentifierExpression*>(node.base.get());
-    if (!ns_ident)
+
+    auto baseId = dynamic_cast<IdentifierExpression*>(node.base.get());
+    if (!baseId)
         throw SemanticException("left side of '::' must be a namespace name");
 
-    if (!scope->has_namespace(ns_ident->name))
-        throw SemanticException("undefined namespace: " + ns_ident->name);
+    std::shared_ptr<Symbol> sym;
+    try {
+        sym = scope->match_global(baseId->name);
+    } catch (const std::runtime_error&) {
+        throw SemanticException("undefined namespace: " + baseId->name);
+    }
 
-    auto saved_scope = scope;
-    scope = scope->match_namespace(ns_ident->name);
-    current_type = scope->match_variable(node.name);
-    scope = saved_scope;
+    auto nsSym = std::dynamic_pointer_cast<NamespaceSymbol>(sym);
+    if (!nsSym)
+        throw SemanticException(baseId->name + " is not a namespace");
+
+ 
+    auto saved = scope;
+    scope = nsSym->scope;
+
+    
+    std::shared_ptr<Symbol> member;
+    try {
+        member = scope->match_global(node.name);
+    } catch (const std::runtime_error&) {
+        throw SemanticException("undefined symbol: " + node.name +
+                                " in namespace " + baseId->name);
+    }
+
+ 
+    if (auto varSym = std::dynamic_pointer_cast<VarSymbol>(member)) {
+        current_type = varSym->type;
+    }
+    else if (auto structSym = std::dynamic_pointer_cast<StructSymbol>(member)) {
+        current_type = structSym->type;
+    }
+    else {
+        throw SemanticException("symbol '" + node.name +
+                                "' in namespace is not a variable or struct");
+    }
+
+    scope = saved;
+
     VISIT_BODY_END
 }
+
 
 void Analyzer::visit(StaticAssertStatement& node) {
     VISIT_BODY_BEGIN
@@ -742,10 +1218,3 @@ bool Analyzer::evaluateConstant(ASTNode* expr) {
     throw SemanticException("static_assert requires compile-time constant expression");
 }
 
-
-
-
-// 1 tip 
-// strogaya
-// 2 tip poka ssylki v const i td
-// 3

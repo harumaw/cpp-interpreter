@@ -86,3 +86,110 @@ while (x < 5) {
 void print_hello() {
     return;
 }
+
+12)
+
+const int MAX_COUNT = 5;
+
+struct Point {
+    int x;
+    int y;
+
+    void move(int dx, int dy) {
+        x += dx;
+        y += dy;
+    }
+
+    int getX() const {
+        return x;   // <-- здесь было `j`, но должно быть `x`
+    }
+
+    int getY() const {
+        return y;
+    }
+};
+
+int factorial(int n) {
+    int result = 1;
+    for (int i = 1; i <= n; ++i) {
+         result *= i;
+     }
+    return result;
+}
+
+int sumTo(int n) {
+    int sum = 0;
+    int i = 0;
+    while (i <= n) {
+         sum += i;
+         i = i + 1;
+     }
+    return sum;
+}
+
+int countOnes(int n) {
+    int count = 0;
+    do {
+         count = count + (n / 2);
+        n = n / 2;
+     } while (n > 0);
+    return count;
+}
+
+int choose(int n, int k) {
+    return (k > n) ? 0
+                   : factorial(n) / (factorial(k) * factorial(n - k));
+}
+
+int main() {
+    const int a = 3;
+    int f = factorial(a);
+    int s = sumTo(f);
+    int c = countOnes(s);
+    int ch = choose(5, 2);
+    print(f);
+    Point p;
+    p.x = 1;
+    p.y = 2;
+    print(ch);
+    p.move(3, 4);   // можно тоже раскомментировать, если нужно
+    int px = p.getX();  // вернёт x
+    int py = p.getY();
+
+    return px + py + f + s + c + ch;
+}
+
+
+int main(){
+    print("Введите два числа:");
+    int c;
+    int e;
+
+    int a = read(c);
+    int b = read(e);
+
+    int sum = a + b;
+    print("Сумма = ", sum);
+}
+
+
+
+int main() {
+    int value = 42;
+    int *p1 = &value;
+    int **p2 = &p1;
+    int ***p3 = &p2;
+    int ****p4 = &p3;
+
+    // Разыменовываем каждый уровень указателя:
+    print(p1);    // распечатает 42
+    print(**p2);   // распечатает 42
+    print(***p3);  // распечатает 42
+    print(****p4); // распечатает 42
+
+    // Остальной код
+    int x = ****p4; // x == 42
+    print(value);   // тоже распечатает 42
+
+    return 0;
+}
