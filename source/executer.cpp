@@ -968,11 +968,24 @@ void Execute::visit(PrefixExpression& node) {
     if (node.op == "&") {
         auto innerType = baseSym->type;
         auto ptrType   = std::make_shared<PointerType>(innerType);
-        std::any ptrValue = baseSym; // «указатель» хранит shared_ptr<VarSymbol> или ArrayElementSymbol
-        current_value = std::make_shared<VarSymbol>(ptrType, ptrValue);
+
+        std::any ptrValue;
+
+        // сохраняем или VarSymbol, или ArrayElementSymbol
+        if (auto arrElem = std::dynamic_pointer_cast<ArrayElementSymbol>(baseSym)) {
+            ptrValue = arrElem;
+        }
+        else if (auto var = std::dynamic_pointer_cast<VarSymbol>(baseSym)) {
+            ptrValue = var;
+        }
+        else {
+            throw std::runtime_error("unsupported operand for '&' — must be VarSymbol or ArrayElementSymbol");
+        }
+
+        auto ptrSym = std::make_shared<VarSymbol>(ptrType, ptrValue);
+        current_value = ptrSym;
         return;
     }
-
     if (node.op == "*") {
         auto pType = std::dynamic_pointer_cast<PointerType>(baseSym->type);
         if (!pType) throw std::runtime_error("cannot dereference non-pointer type");
@@ -1109,7 +1122,7 @@ void Execute::visit(FunctionCallExpression& node) {
 
 
     if (auto ident = dynamic_cast<IdentifierExpression*>(node.base.get())) {
-        if (ident->name == "read") {
+        if (ident->name == "read") { //rework
             if (node.args.size() != 1) {
                 throw std::runtime_error("read() requires exactly one argument");
             }

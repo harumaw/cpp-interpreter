@@ -38,13 +38,13 @@ int main() {
         executor.execute(*translation_unit);
         
         std::cout << "executer end\n";
-
+/*
        Printer printer;
         printer.visit(*translation_unit);
         return 0;
         
 
-        
+        */
  
 
     } catch (const std::runtime_error& e) {

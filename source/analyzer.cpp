@@ -145,11 +145,11 @@ void Analyzer::visit(VarDeclaration& node) {
     std::shared_ptr<Type> base_t;
     bool deduce_auto = false;
 
-    // 1) Если «auto», то находим базовый тип из единственного initializer
+
     if (node.type == "auto") {
         deduce_auto = true;
 
-        // 1.1) Требуем ровно один declarator с initializer
+        
         if (node.declarator_list.empty()) {
             throw SemanticException("auto-declaration requires at least one declarator");
         }
@@ -166,14 +166,14 @@ void Analyzer::visit(VarDeclaration& node) {
             throw SemanticException("cannot deduce type for auto");
         }
 
-        // 1.3) Если это был ConstType, убираем верхний const
+        
         if (auto cp = dynamic_cast<ConstType*>(current_type.get())) {
             base_t = cp->get_base();
         } else {
             base_t = current_type;
         }
     }
-    // 2) Иначе тип указан явно (int, float, char, bool, имя struct и т. д.)
+    // тип указан явно (int, float, char, bool, имя struct и т. д.)
     else {
         base_t = get_type(node.type);
         if (node.is_const) {
@@ -181,16 +181,16 @@ void Analyzer::visit(VarDeclaration& node) {
         }
     }
 
-    // 3) Перебираем каждый InitDeclarator из списка
+    // перебираем каждый InitDeclarator из списка
     for (auto& decl : node.declarator_list) {
         const std::string& name = decl->declarator->name;
 
-        // 3.1) Проверяем, нет ли уже такого имени в scope
+        // проверяем, нет ли уже такого имени в scope
         if (scope->contains_symbol(name)) {
             throw SemanticException("variable already declared: " + name);
         }
 
-        // 3.2) Собираем полный тип переменной (с учётом всех «*»)
+        // собираем полный тип переменно
         std::shared_ptr<Type> var_type;
         if (!deduce_auto) {
            
@@ -214,12 +214,11 @@ void Analyzer::visit(VarDeclaration& node) {
 
 
         if (decl->initializer) {
-            // 3.4.1) Для не-auto: надо ещё раз вычислить тип RHS,
-            //         потому что current_type уже «занулился» внутри сборки var_type
+            //          надо ещё раз вычислить тип,
+            //         потому что current_type уже "занулился" внутри сборки var_type
             if (!deduce_auto) {
                 decl->initializer->accept(*this);
             }
-            // Сейчас current_type = тип RHS
             if (!canConvert(current_type, var_type)) {
                 throw SemanticException(
                     "cannot initialize variable '" + name + "' with given type"
@@ -257,24 +256,26 @@ void Analyzer::visit(FuncDeclaration& node) {
 
     std::shared_ptr<Type> ret_t;
 
+    // если у функции тип auto - запускаем проход для вывода возвращаемого типа
     if (node.type == "auto") {
-
         auto saved_scope = scope;
         bool saved_flag = is_deducing_return;
         auto saved_deduced = deduced_return_type;
 
+        // включаем режим выведения типа
         is_deducing_return = true;
         deduced_return_type = nullptr;
 
-       
         scope = scope->create_new_table(saved_scope);
 
-        // регистрируем параметры, чтобы их можно было использовать в return-выражениях
+
         std::vector<std::shared_ptr<Type>> arg_ts_for_deduce;
         for (auto& p : node.args) {
             auto pt = get_type(p->type);
             arg_ts_for_deduce.push_back(pt);
         }
+
+        // кладём параметры в таблицу символов, чтобы return-выражения их видели
         for (size_t i = 0; i < node.args.size(); ++i) {
             const auto& pname = node.args[i]->init_declarator->declarator->name;
             scope->push_symbol(pname, std::make_shared<VarSymbol>(arg_ts_for_deduce[i]));
@@ -283,54 +284,52 @@ void Analyzer::visit(FuncDeclaration& node) {
         
         node.body->accept(*this);
 
-
+      
         if (!deduced_return_type) {
             ret_t = Analyzer::default_types.at("void");
         } else {
             ret_t = deduced_return_type;
         }
 
-        
         scope = saved_scope;
         is_deducing_return = saved_flag;
         deduced_return_type = saved_deduced;
-        
     }
     else {
-        
         ret_t = get_type(node.type);
         if (node.is_const) {
             ret_t = std::make_shared<ConstType>(ret_t);
         }
     }
 
-    // Регистрируем функцию в текущем скоупе (с уже известным ret_t)
     std::vector<std::shared_ptr<Type>> arg_ts;
     for (auto& p : node.args) {
         arg_ts.push_back(get_type(p->type));
     }
 
+    // проверка на повторное объявление функции
     const auto& fname = node.declarator->name;
     if (scope->contains_symbol(fname)) {
         throw SemanticException("function already declared: " + fname);
     }
+
 
     auto signature = std::make_shared<FuncType>(ret_t, arg_ts, node.is_readonly);
     auto funcSym   = std::make_shared<FuncSymbol>(signature, arg_ts, node.is_readonly);
     funcSym->declaration = &node;
     scope->push_symbol(fname, funcSym);
 
-    // ======== Второй проход: валидация тела с известным ret_t ========
+    // второй проход: проверка тела функции уже с известным return-типом
     return_type_stack.push_back(ret_t);
     auto saved_scope2 = scope;
     scope = scope->create_new_table(saved_scope2);
 
-    // Регистрируем параметры как локальные переменные
+    
     for (size_t i = 0; i < node.args.size(); ++i) {
         const auto& pname = node.args[i]->init_declarator->declarator->name;
         scope->push_symbol(pname, std::make_shared<VarSymbol>(arg_ts[i]));
 
-        // Если у параметра есть initializer, проверяем canConvert
+        // если параметр проинициализирован  проверяем, что тип совместим
         if (node.args[i]->init_declarator->initializer) {
             node.args[i]->init_declarator->initializer->accept(*this);
             if (!canConvert(current_type, arg_ts[i])) {
@@ -341,13 +340,10 @@ void Analyzer::visit(FuncDeclaration& node) {
         }
     }
 
-  
     node.body->accept(*this);
-
 
     scope = saved_scope2;
     return_type_stack.pop_back();
-
 
     VISIT_BODY_END
 }
@@ -362,7 +358,7 @@ void Analyzer::visit(StructDeclaration& node) {
         throw SemanticException("struct already declared: " + node.name);
     }
 
-    // 2) Две карты: data_members для типов полей, methods для типов методов,
+    // две мапы data_members для типов полей, methods для типов методов,
     //    и одна карта member_symbols для самих VarSymbol/FuncSymbol
     std::unordered_map<std::string, std::shared_ptr<Type>>    data_members;
     std::unordered_map<std::string, std::shared_ptr<FuncType>> methods;
@@ -608,9 +604,9 @@ void Analyzer::visit(ReturnStatement& node) {
         }
 
         // строгое равенство типов
-        if (!expr_base->equals(declared_base)) {
+        if (!canConvert(expr_base, declared_base)) {
             throw SemanticException(
-                "return type mismatch: cannot convert "
+                "return type mismatch"
             );
         }
         current_type = declared_base;
@@ -631,6 +627,27 @@ void Analyzer::visit(BreakStatement& /*node*/) {}
 void Analyzer::visit(ContinueStatement& /*node*/) {}
 void Analyzer::visit(BinaryOperation& node) {
     VISIT_BODY_BEGIN
+    
+    if (node.op == "+=" || node.op == "-=" ||
+    node.op == "*=" || node.op == "/=") {
+        node.lhs->accept(*this);
+        auto lhs_t = current_type;
+
+    if (dynamic_cast<ConstType*>(lhs_t.get())) {
+        throw SemanticException("assignment to const variable");
+    }
+
+        node.rhs->accept(*this);
+        auto rhs_t = current_type;
+
+    if (!dynamic_cast<Arithmetic*>(lhs_t.get()) ||
+        !dynamic_cast<Arithmetic*>(rhs_t.get())) {
+        throw SemanticException("operator " + node.op + " requires arithmetic operands");
+    }
+
+        current_type = lhs_t;
+        return;
+    }
 
     if (node.op == "=") {
         node.lhs->accept(*this);

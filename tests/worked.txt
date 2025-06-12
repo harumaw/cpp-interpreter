@@ -193,3 +193,26 @@ int main() {
 
     return 0;
 }
+
+not worked
+int main() {
+    int arr[3] = {10, 20, 30};
+
+    int *p = arr[3];    // p указывает на arr[0]
+    int *q = p + 2;      // q указывает на arr[2]
+
+    int x = *p;          // x = 10
+    int y = *q;          // y = 30
+
+    int d = q - p;       // d = 2 (расстояние между q и p в элементах int)
+
+}
+
+
+int main() {
+    int arr[3] = {10, 20, 30};
+
+
+    int x = arr[0];
+    print(x);
+}
